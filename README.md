@@ -6,6 +6,8 @@
 
 A personal assistant for a manager whose notes are scattered across meeting notes, reminders, half-written updates, action lists, saved links, a calendar and screenshots. It runs on your own computer, works without the internet, needs nothing installed beyond Python, and keeps no copy of anything it reads.
 
+**New here? Read the [Quick Guide](USER_GUIDE.md)**: how to start it, what to ask, and how to check it kept your notes private.
+
 | | |
 |---|---|
 | ![Chat: a meeting brief](docs/screenshots/chat-meeting-brief.jpg) | ![What has changed](docs/screenshots/what-changed.jpg) |
