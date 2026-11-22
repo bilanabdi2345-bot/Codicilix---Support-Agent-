@@ -23,7 +23,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def load_config():
     path = os.environ.get("SECOND_BRAIN_CONFIG", os.path.join(ROOT, "config.json"))
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         config = json.load(f)
     for c in config["compartments"]:
         p = os.path.expanduser(c["path"])

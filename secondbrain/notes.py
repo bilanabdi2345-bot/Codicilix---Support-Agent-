@@ -383,7 +383,7 @@ def _candidates(name, folder=None, files=None):
         for path in files:
             path = os.path.expanduser(path)
             if os.path.isfile(path):
-                yield os.path.basename(path), path, os.path.join(name, os.path.basename(path))
+                yield os.path.basename(path), path, name + "/" + os.path.basename(path)
         return
     folder = os.path.expanduser(folder or "")
     if not os.path.isdir(folder):
@@ -392,7 +392,7 @@ def _candidates(name, folder=None, files=None):
         dirs[:] = sorted(d for d in dirs if not d.startswith("."))
         for fname in sorted(names):
             path = os.path.join(root, fname)
-            yield fname, path, os.path.join(name, os.path.relpath(path, folder))
+            yield fname, path, name + "/" + os.path.relpath(path, folder).replace(os.sep, "/")
 
 
 _DATE_LISTS = {}

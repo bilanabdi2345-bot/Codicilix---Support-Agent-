@@ -39,6 +39,20 @@ David's original version, with its browser demo and Windows support, is at
 - **Check-up**: one button tests every promise. Add a monthly reminder to your calendar.
 - **Appearance & themes**: a theme gallery (Paper, Midnight, Forest, Sunset, High contrast, Terminal), a theme maker, theme import and download, text size, and an easy-read mode with extra spacing that helps with dyslexia.
 
+## On Windows
+
+Codicilix is plain Python, so it runs on Windows too. Install Python 3 and Ollama, then
+double-click `start-windows.bat` (or run `python -m secondbrain`). It opens in your browser.
+
+A few things are Mac-only, and Windows does something simpler instead:
+
+- **Reading photos and screenshots** uses Apple's text reader on a Mac. On Windows, install
+  Tesseract (free) and Codicilix uses that. Without it, photos are skipped and the check-up says so.
+- **Scanned PDFs** are read by the Mac. On Windows, PDFs with real text still work.
+- **The folder picker** is the Mac's. On Windows, type or paste the folder path.
+- **The app window and the Codicilix app icon** are made by a Mac script. On Windows it opens in a
+  normal browser tab.
+
 ## A second sample: Project Helix
 
 `sample-notes/Helix` is a messier set of notes for one moment: the first week back in January,

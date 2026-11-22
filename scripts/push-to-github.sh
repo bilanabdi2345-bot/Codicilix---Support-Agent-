@@ -47,6 +47,9 @@ Codicilix now reads .eml (who, when, subject, body), .json chat exports
 (each message dated by its own timestamp) and .rtf as plain text.
 Helix starts switched off in Folders & access.
 
+Also works better on Windows: file paths use / everywhere, the settings
+file is read as UTF-8, and start-windows.bat starts the app.
+
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01VVwckDT7HZbWnG791fhe7d
 MSG
