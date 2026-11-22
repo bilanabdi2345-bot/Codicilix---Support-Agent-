@@ -317,6 +317,54 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
 
+/* ---- added: key notice, local AI, check-up, display options ---- */
+.need-key { position: fixed; inset: 0; background: var(--scrim); display: grid; place-items: center; z-index: 50; padding: 16px; }
+.need-key-box { background: var(--surface); border-radius: var(--radius); padding: 22px 24px; max-width: 460px; box-shadow: var(--shadow); }
+.need-key-box h2 { margin: 0 0 8px; font-size: 18px; }
+.need-key-box p { margin: 6px 0; color: var(--ink-2); }
+
+.brief-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.ghost.small { font-size: 12.5px; padding: 4px 10px; flex: none; }
+.copy-fallback { width: 100%; min-height: 120px; font: 12.5px/1.4 Consolas, ui-monospace, monospace; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-3); color: var(--ink); }
+
+.ai-box { margin: 4px 0 10px; }
+.ai-btn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--violet); background: var(--violet-soft); color: var(--violet); border-radius: 999px; padding: 6px 14px; font-weight: 600; font-size: 13.5px; }
+.ai-btn:hover { filter: brightness(0.97); }
+.ai-model { font-weight: 500; font-size: 12px; opacity: .8; }
+.ai-card { border-color: var(--violet-soft); }
+.ai-head { font-size: 13.5px; color: var(--violet); }
+.ai-points { margin: 6px 0 0; padding-left: 20px; }
+.ai-points li { margin: 6px 0; }
+.cite { border: 1px solid var(--line); background: var(--surface-2); color: var(--violet); border-radius: 6px; font-size: 11.5px; font-weight: 700; padding: 0 6px; margin-left: 3px; line-height: 1.6; }
+.cite:hover { border-color: var(--violet); }
+
+.check-list { margin-top: 10px; }
+.check-score { font-weight: 700; margin-bottom: 4px; }
+.check-row { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--line); }
+.check-icon { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 13px; }
+.check-row.pass .check-icon { background: var(--green-soft); color: var(--green); }
+.check-row.warn .check-icon { background: var(--amber-soft); color: var(--amber); }
+.check-row.fail .check-icon { background: var(--red-soft); color: var(--red); }
+.check-row.skip .check-icon { background: var(--chip-bg); color: var(--faint); }
+.check-name { font-weight: 600; }
+
+.display-wrap { position: relative; }
+.display-panel { position: absolute; right: 0; top: calc(100% + 8px); width: 300px; max-width: calc(100vw - 32px); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px 14px; z-index: 20; display: grid; gap: 10px; }
+.dp-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13.5px; }
+.dp-label { color: var(--muted); font-weight: 600; }
+.dp-check { justify-content: flex-start; align-items: flex-start; }
+.dp-note { font-size: 12px; color: var(--faint); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { background: var(--surface); border: 0; padding: 4px 9px; font-size: 12.5px; color: var(--ink-2); }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button.on { background: var(--primary); color: var(--on-primary); }
+.layout { zoom: var(--zoom, 1); }
+.easy-read body, .easy-read button, .easy-read input { font-family: Verdana, Tahoma, "Segoe UI", sans-serif; }
+.easy-read body { letter-spacing: .03em; word-spacing: .14em; line-height: 1.75; }
+.easy-read .quote { font-style: normal; }
+.easy-read .quote::before, .easy-read .quote::after { content: none; }
+@media (max-width: 520px) { .display-panel { position: fixed; left: 16px; right: 16px; top: 120px; width: auto; } }
+
 </style>
 <header class="topbar">
   <div class="brand">
@@ -329,6 +377,25 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   <button class="trust-pill" id="trustPill" title="See the proof">
     <span class="dot"></span><span id="trustText">On this device · guard on</span>
   </button>
+  <div class="display-wrap">
+    <button class="ghost" id="displayBtn" aria-expanded="false" aria-controls="displayPanel">Display</button>
+    <div class="display-panel hidden" id="displayPanel" role="group" aria-label="Display options">
+      <div class="dp-row">
+        <span class="dp-label">Text size</span>
+        <div class="seg" id="sizeSeg">
+          <button data-size="0.9">A−</button><button data-size="1" class="on">A</button><button data-size="1.15">A+</button><button data-size="1.3">A++</button>
+        </div>
+      </div>
+      <div class="dp-row">
+        <span class="dp-label">Theme</span>
+        <div class="seg" id="themeSeg">
+          <button data-theme="" class="on">Auto</button><button data-theme="light">Light</button><button data-theme="dark">Dark</button>
+        </div>
+      </div>
+      <label class="dp-row dp-check"><input type="checkbox" id="easyRead"> Easy-read: more spacing, plainer letters (helps with dyslexia)</label>
+      <div class="dp-note">Only changes how this window looks. Nothing is saved.</div>
+    </div>
+  </div>
   <button class="ghost" id="endSession" title="Forget the allowed folders and the ledger">End session &amp; forget</button>
 </header>
 
@@ -461,6 +528,12 @@ window.SB_DEMO_FILES = [
 "modified": "2026-11-21",
 "size": 328,
 "text": "atlas standup 17/11\npriya, tom (shadowing - starts properly 26/11), me\n\napi limits fixed?? priya says partly. higher tier on trial, refresh down to 3hrs\nmarco STILL hasnt confirmed EU data residency!! chase\npilot regions = UK + DE\ntom to own the comms plan once he starts\nwhiteboard pic in screenshots folder - rollout timeline\n"
+},
+{
+"display": "quick/action list.csv",
+"modified": "2026-11-22",
+"size": 164,
+"text": "Action,Owner,Due,Status\nSend Tom the welcome pack,me,2026-11-25,open\nConfirm the pilot regions,Priya,2026-11-18,done\nChase IT about Tom's laptop,me,2026-11-24,open\n"
 },
 {
 "display": "quick/phone notes Nov.txt",
@@ -633,7 +706,7 @@ const SBEngine = (() => {
   const TEXT_EXT = [".md", ".markdown", ".txt", ".text", ".org"], CAL_EXT = [".ics"], LINK_EXT = [".url", ".webloc"];
   const IMAGE_EXT = [".png", ".jpg", ".jpeg", ".gif", ".heic", ".bmp", ".webp", ".tif", ".tiff"];
   const KIND_LABEL = { note: "Note", calendar: "Calendar", link: "Saved link", links: "Saved links",
-    reminders: "Reminders", draft: "Draft", screenshot: "Screenshot" };
+    reminders: "Reminders", draft: "Draft", screenshot: "Screenshot", actions: "Action list" };
   const extOf = (name) => { const i = name.lastIndexOf("."); return i > 0 ? name.slice(i).toLowerCase() : ""; };
   const baseName = (p) => p.split("/").pop();
   const stemName = (p) => { const b = baseName(p); const i = b.lastIndexOf("."); return i > 0 ? b.slice(0, i) : b; };
@@ -642,6 +715,7 @@ const SBEngine = (() => {
     const name = baseName(display).toLowerCase(), ext = extOf(name);
     const parts = display.toLowerCase().split("/").slice(0, -1);
     if (CAL_EXT.includes(ext)) return "calendar";
+    if (ext === ".csv") return "actions";
     if (LINK_EXT.includes(ext)) return "link";
     if (IMAGE_EXT.includes(ext)) return "screenshot";
     if (TEXT_EXT.includes(ext)) {
@@ -680,9 +754,62 @@ const SBEngine = (() => {
     return names;
   }
 
+  // ---- spreadsheet action lists (.csv), as in sources.csv_rows_to_lines ----
+  function parseCsv(text) {
+    const rows = []; let row = [], cell = "", q = false, i = 0;
+    while (i < text.length) {
+      const c = text[i];
+      if (q) {
+        if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i += 2; continue; } q = false; i++; continue; }
+        cell += c; i++; continue;
+      }
+      if (c === '"') { q = true; i++; continue; }
+      if (c === ",") { row.push(cell); cell = ""; i++; continue; }
+      if (c === "\r") { i++; continue; }
+      if (c === "\n") { row.push(cell); rows.push(row); row = []; cell = ""; i++; continue; }
+      cell += c; i++;
+    }
+    if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
+    return rows;
+  }
+  const CSV_COLS = { action: ["action", "task", "todo", "to do", "item", "what", "description"],
+    owner: ["owner", "who", "assignee", "assigned to", "person", "lead"],
+    due: ["due", "due date", "deadline", "by", "date", "when"],
+    status: ["status", "done", "state", "complete", "completed"] };
+  const DONE_WORDS = new Set(["done", "complete", "completed", "closed", "finished", "yes", "y", "true", "x", "✅"]);
+  function csvRowsToLines(text) {
+    const rows = parseCsv(text);
+    if (!rows.length) return [[], []];
+    const header = rows[0].map((c) => c.trim().toLowerCase());
+    const col = {};
+    for (const [key, names] of Object.entries(CSV_COLS)) {
+      for (let i = 0; i < header.length; i++) {
+        if (names.includes(header[i]) && !Object.values(col).includes(i)) { col[key] = i; break; }
+      }
+    }
+    const hasHeader = "action" in col;
+    const body = hasHeader ? rows.slice(1) : rows;
+    const lines = hasHeader ? ["# " + rows[0].join(", ")] : [], owners = [];
+    for (const r of body) {
+      const cell = (k) => (k in col && col[k] < r.length ? r[col[k]].trim() : "");
+      const action = hasHeader ? cell("action") : r.map((c) => c.trim()).filter(Boolean).join(" ");
+      if (!action) { lines.push(""); continue; }
+      const owner = cell("owner"), due = cell("due"), status = cell("status").toLowerCase();
+      const who = ["", "me", "i", "you", "myself"].includes(owner.toLowerCase()) ? "me" : owner;
+      if (who !== "me") owners.push(owner);
+      lines.push(`- [${DONE_WORDS.has(status) ? "x" : " "}] ${action} · ${who}` + (due ? ` · by ${due}` : ""));
+    }
+    return [lines, owners];
+  }
+
   function readDoc(f) {
     const kind = f.kind, mtime = fromIso(f.modified), text = f.text || "";
     if (kind === "calendar") return readIcs(f, mtime);
+    if (kind === "actions") {
+      const [lines, owners] = csvRowsToLines(text);
+      return { path: f.path, display: f.display, kind, title: stemName(f.display), date: mtime,
+        dateSource: "file time (guessed)", lines, people: [], owners, events: [], url: null };
+    }
     if (kind === "link") {
       let m = text.match(/^\s*URL\s*=\s*(\S+)/im), url = null;
       if (m) url = m[1];
@@ -886,7 +1013,7 @@ review talk topic plan planning team context thanks follow followup again since 
   function buildRoster(docs) {
     const r = new Roster();
     for (const d of docs) {
-      for (const p of d.people) r.add(p);
+      for (const p of d.people.concat(d.owners || [])) r.add(p);
       for (const e of d.events) { for (const a of e.attendees) r.add(a); if (e.me) r.me = e.me; }
       if (d.kind !== "calendar") {
         for (const ln of d.lines) for (const m of ln.matchAll(/(?<![\w.])@([A-Za-z]{2,})\b(?![.@])/g)) r.add(m[1]);
@@ -969,7 +1096,11 @@ review talk topic plan planning team context thanks follow followup again since 
       if (!reason && d.kind === "reminders") reason = "in your reminders";
       if (reason) { f.tags.add("action"); f.why.action = reason; }
     }
-    if (f.tags.has("action") || f.tags.has("done") || f.tags.has("question")) {
+    if (d.kind === "actions" && t.includes(" · ")) {
+      const who = t.split(" · ")[1].trim().toLowerCase();
+      f.owner = ["me", "i", "you"].includes(who) ? "you" : (who.split(/\s+/)[0] || null);
+    }
+    if (f.owner === null && (f.tags.has("action") || f.tags.has("done") || f.tags.has("question"))) {
       for (const first of roster.full.keys()) {
         if (new RegExp(`(?:^|[\\s(@])${first}\\s+(?:to|will|needs to|should)\\s+(?!be\\b)\\w+`, "i").test(t)) { f.owner = first; break; }
       }
@@ -1466,22 +1597,42 @@ month week day end anything original amount`.split(/\s+/).map(stem));
         summary: items.length ? "Things your notes say differently over time, newest first:" : "I didn't find notes that contradict each other.",
         items, gaps: askGaps(context) };
     }
-    const intent = /\b(decid\w*|decision|agree\w*|go with|choose|chose)\b/i.test(q) ? "decision"
-      : /\bwhen\b|\bdate\b|\bdeadline\b/i.test(q) ? "when"
-      : /\b(how much|budget|cost|costs|price|pricing|spend)\b|[£$€]/i.test(q) ? "amount"
-      : /\bwho\b/i.test(q) ? "who"
-      : /\b(link|article|url|saved|bookmark)\b/i.test(q) ? "link" : "";
-    let content = q.replace(Q_WORDS, " ");
-    if (intent === "decision") content = content.replace(/\b(decid\w*|decision|agree\w*|go with|choose|chose)\b/gi, " ");
+    const period = findPeriod(q, today);
+    const qx = period ? q.slice(0, period[3][0]) + " " + q.slice(period[3][1]) : q;
+    const inPeriod = period ? (f) => period[0] <= f.date && f.date <= period[1] : () => true;
+    const plabel = period ? `${period[2]} (${fmtDate(period[0])}` + (period[1] !== period[0] ? ` to ${fmtDate(period[1])})` : ")") : "";
+    let intent = /\b(decid\w*|decision\w*|agree\w*|go with|choose|chose)\b/i.test(qx) ? "decision"
+      : /\bwhen\b|\bdate\b|\bdeadline\b/i.test(qx) ? "when"
+      : /\b(how much|budget|cost|costs|price|pricing|spend)\b|[£$€]/i.test(qx) ? "amount"
+      : /\bwho\b/i.test(qx) ? "who"
+      : /\b(link|article|url|saved|bookmark)\b/i.test(qx) ? "link" : "";
+    let content = qx.replace(Q_WORDS, " ");
+    if (intent === "decision") content = content.replace(/\b(decid\w*|decision\w*|agree\w*|go with|choose|chose)\b/gi, " ");
+    let only = intent === "decision" ? "decision" : null;
+    if (period) {
+      for (const [kind, rx] of KIND_WORDS) {
+        if (rx.test(content)) { only = only || kind; content = content.replace(new RegExp(rx.source, "gi"), " "); }
+      }
+    }
     const words = (content.match(/[A-Za-z0-9£$€']+/g) || []).filter((w) => tokens(w).length && !GENERIC.has(tokens(w)[0]));
-    let qt = tokens(content).filter((w) => !GENERIC.has(w));
-    if (!qt.length) qt = tokens(content);
-    const query = new Map(qt.map((w) => [w, 1.0]));
+    const specific = tokens(content).filter((w) => !GENERIC.has(w));
+    if (period && !specific.length) return periodOverview(frags, period, plabel, context, only);
+    let qt = specific.length ? specific : tokens(content);
     const shown = new Map();
     for (const w of words) { const lw = w.toLowerCase(); shown.set(tokens(w)[0], lw.endsWith("'s") ? lw.slice(0, -2) : lw); }
     const sh = (w) => shown.get(w) || w;
+    const query = new Map(), corrections = [];
+    for (const w of qt) {
+      const c = ix.df.get(w) ? null : closest(w, ix.df);
+      if (c && !query.has(c) && !qt.includes(c)) { corrections.push([sh(w), c]); shown.set(c, c); query.set(c, 1.0); }
+      else query.set(w, 1.0);
+    }
+    qt = [...query.keys()];
+    const note = corrections.length ? "I read " + corrections.map(([a, b]) => `“${a}” as “${b}”`).join(", ") + ". " : "";
+    if (!intent && (query.has("budget") || query.has("pricing"))) intent = "amount";
     const scored = [];
     for (const f of frags) {
+      if (!inPeriod(f)) continue;
       let s = ix.bm25(query, f);
       if (s <= 0) continue;
       if (intent === "decision" && f.tags.has("decision")) s *= 1.6;
@@ -1503,20 +1654,21 @@ month week day end anything original amount`.split(/\s+/).map(stem));
     if (!sortedScored.length) {
       const files = new Set(frags.map((f) => f.doc.path)).size;
       const w = qt.slice(0, 4).map((x) => `“${sh(x)}”`).join(", ") || "that";
-      return { status: "not_found", summary: `I couldn't find anything about ${w} in the ${plural(files, "file")} you've let me see.`, items: [], gaps, query_words: qt };
+      if (period) return { status: "not_found", summary: note + `I couldn't find anything about ${w} in notes dated ${plabel}.`, items: [], gaps, query_words: qt };
+      return { status: "not_found", summary: note + `I couldn't find anything about ${w} in the ${plural(files, "file")} you've let me see.`, items: [], gaps, query_words: qt };
     }
     const [topS, top] = sortedScored[0];
     const coverage = sum([...query.keys()].filter((w) => top.toks.includes(w)).map((w) => ix.weight(w))) / totalW;
     const knownW = sum([...query.keys()].filter((w) => !missing.includes(w)).map((w) => ix.weight(w))) || 1;
     const knownCov = sum([...query.keys()].filter((w) => top.toks.includes(w)).map((w) => ix.weight(w))) / knownW;
     const mt = (f) => matched(query, f).map(sh);
-    if (missing.length && missingShare >= 0.3 && knownCov < 0.8) {
+    if (missing.length && (missingShare >= 0.5 || (missingShare >= 0.3 && knownCov < 0.8))) {
       return { status: "not_found",
-        summary: `I couldn't find anything about ${missing.map((w) => `“${sh(w)}”`).join(", ")} in your notes, so I can't answer that. These lines share some words with your question but don't answer it:`,
+        summary: note + `I couldn't find anything about ${missing.map((w) => `“${sh(w)}”`).join(", ")} in your notes, so I can't answer that. These lines share some words with your question but don't answer it:`,
         items: sortedScored.slice(0, 3).map(([, f]) => item(f, { why: whyText(f, mt(f)), confidence: "low" })), gaps, query_words: qt };
     }
     if (coverage < 0.34 && !(missing.length && knownCov >= 0.8)) {
-      return { status: "unsure", summary: "I'm not sure. Nothing in your notes clearly answers that. The closest lines only partly match:",
+      return { status: "unsure", summary: note + "I'm not sure. Nothing in your notes clearly answers that. The closest lines only partly match:",
         items: sortedScored.slice(0, 3).map(([, f]) => item(f, { why: whyText(f, mt(f)), confidence: "low" })), gaps, query_words: qt };
     }
     const keep = sortedScored.filter(([s]) => s >= 0.45 * topS).slice(0, 10).map(([, f]) => f);
@@ -1569,7 +1721,78 @@ month week day end anything original amount`.split(/\s+/).map(stem));
       if (c.tentative) summary += " It isn't final yet.";
     }
     if (missing.length) summary += ` (Nothing in your notes mentions ${missing.map((w) => `“${sh(w)}”`).join(", ")}.)`;
-    return { status: "found", summary, items, gaps, query_words: qt, confidence: conf };
+    if (period) summary += ` Only notes dated ${plabel}.`;
+    return { status: "found", summary: note + summary, items, gaps, query_words: qt, confidence: conf };
+  }
+
+  // ---- spelling tolerance and time windows (as in brain.py) ----
+  function editDistance(a, b, limit = 2) {
+    if (Math.abs(a.length - b.length) > limit) return limit + 1;
+    let prev2 = [], prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for (let i = 1; i <= a.length; i++) {
+      const cur = [i].concat(new Array(b.length).fill(0));
+      for (let j = 1; j <= b.length; j++) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+        if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) cur[j] = Math.min(cur[j], prev2[j - 2] + 1);
+      }
+      prev2 = prev; prev = cur;
+    }
+    return prev[prev.length - 1];
+  }
+  function closest(word, vocab, minLen = 5) {
+    if (word.length < minLen || !/^[a-z]+$/i.test(word)) return null;
+    const limit = word.length < 7 ? 1 : 2;
+    let best = null;
+    for (const [v, n] of vocab) {
+      if (!/^[a-z]+$/i.test(v) || v[0] !== word[0] || Math.abs(v.length - word.length) > limit) continue;
+      const d = editDistance(word, v, limit);
+      if (d <= limit) { const key = [d, -n, v]; if (!best || cmpKey(key, best[0]) < 0) best = [key, v]; }
+    }
+    return best ? best[1] : null;
+  }
+  const DAY_FULL = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const MONTH_FULL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const PERIOD_RX = new RegExp(`\\b(today|yesterday|this week|last week|this month|last month|(?:in the |over the )?(?:past|last) (\\d{1,3}) days|since (${WD})|in (${MON}))\\b`, "i");
+  function findPeriod(q, today) {
+    const m = q.match(PERIOD_RX);
+    if (!m) return null;
+    const p = m[1].toLowerCase();
+    let a, b, label;
+    if (p === "today") { a = b = today; label = "today"; }
+    else if (p === "yesterday") { a = b = today - 1; label = "yesterday"; }
+    else if (p === "this week") { a = today - weekday(today); b = today; label = "this week"; }
+    else if (p === "last week") { a = today - (weekday(today) + 7); b = a + 6; label = "last week"; }
+    else if (p === "this month") { const [y, mo] = ymd(today); a = dnum(y, mo, 1); b = today; label = "this month"; }
+    else if (p === "last month") { const [y, mo] = ymd(today); b = dnum(y, mo, 1) - 1; const [y2, m2] = ymd(b); a = dnum(y2, m2, 1); label = "last month"; }
+    else if (m[2]) { const n = +m[2]; a = today - n; b = today; label = `in the last ${n} days`; }
+    else if (m[3]) { const wd = WEEKDAYS[m[3].toLowerCase()]; a = today - mod(weekday(today) - wd, 7); b = today; label = `since ${DAY_FULL[weekday(a)]}`; }
+    else { const mon = MONTHS[m[4].toLowerCase()]; const [y, tm] = ymd(today); const yy = mon <= tm ? y : y - 1; a = dnum(yy, mon, 1); b = lastDay(yy, mon); label = `in ${MONTH_FULL[mon - 1]}`; }
+    return [a, b, label, [m.index, m.index + m[0].length]];
+  }
+  const KIND_WORDS = [["action", /\b(actions?|to-?dos?|tasks?)\b/i], ["risk", /\b(risks?|problems?|issues?|blockers?)\b/i],
+    ["question", /\b(open questions?|questions?)\b/i]];
+  const KIND_PLURAL = { decision: "Decisions", action: "Actions", risk: "Risks", question: "Open questions" };
+  function kindLabel(f) {
+    for (const [tg, label] of [["decision", "Decision"], ["done", "Done"], ["action", "Action"], ["risk", "Risk"], ["question", "Open question"]]) {
+      if (f.tags.has(tg)) return label;
+    }
+    return "Note";
+  }
+  function periodOverview(frags, period, plabel, context, only) {
+    const [a, b] = period;
+    const inside = sortBy(frags.filter((f) => a <= f.date && f.date <= b && !f.tags.has("link") && (only == null || f.tags.has(only))),
+      (f) => [-f.date, ![...f.tags].some((t) => t !== "tentative"), f.id]);
+    const items = inside.slice(0, 12).map((f) => item(f, { why: whyText(f), headline: `${fmtDate(f.date)} · ${kindLabel(f)}`,
+      flags: f.tags.has("tentative") ? ["not final"] : [], confidence: "high" }));
+    const guessed = [...new Set(inside.filter((f) => f.dateGuessed).map((f) => f.doc.display))].sort();
+    const gaps = askGaps(context);
+    if (guessed.length) gaps.push({ text: `No dates inside ${guessed.join(", ")}, so they're placed by when the file was last changed.`, kind: "dates" });
+    const what = only ? KIND_PLURAL[only].toLowerCase() : "anything";
+    if (!items.length) return { status: "not_found", kind: "period", items: [], gaps, summary: `I found no ${what} in your notes dated ${plabel}.` };
+    const more = inside.length > 12 ? ` Showing the newest 12 of ${inside.length}.` : "";
+    const lead = only ? `${KIND_PLURAL[only]} your notes recorded` : "Here's what your notes recorded";
+    return { status: "found", kind: "period", items, gaps, summary: `${lead} ${plabel}, newest first.${more}` };
   }
 
   // ------------------------------------------------------------------ chat
@@ -1607,10 +1830,37 @@ month week day end anything original amount`.split(/\s+/).map(stem));
     date: today, start: { date: today, h: 23, mi: 59, s: 0 }, date_label: label });
   const asAnswer = (r) => { const o = Object.assign({}, r); o.answer_kind = o.kind || "question"; delete o.kind; return Object.assign({ kind: "answer" }, o); };
 
+  function fixNames(msg, roster, docs) {
+    const vocab = new Set(tokens(docs.filter((d) => d.kind !== "calendar").flatMap((d) => d.lines).join(" ")));
+    const names = new Map([...roster.full.keys()].map((f) => [f, 1]));
+    const fixes = [];
+    const out = msg.replace(/[A-Za-z]+/g, (w) => {
+      const lw = w.toLowerCase();
+      if (lw.length < 4 || names.has(lw) || STOP.has(lw) || GENERIC.has(lw) || vocab.has(lw) || vocab.has(stem(lw))) return w;
+      const c = closest(lw, names, 4);
+      if (!c) return w;
+      fixes.push([w, roster.name(c)]);
+      return roster.name(c);
+    });
+    return [out, fixes];
+  }
+
   function chat(docs, message, today, context) {
-    const msg = (message || "").trim().slice(0, 500);
-    if (!msg) return { kind: "text", text: "Ask me anything about the notes you've allowed.", suggestions: CHAT_SUGGESTIONS };
-    const roster = buildRoster(docs), files = new Set(docs.map((d) => d.path)).size;
+    const msg0 = (message || "").trim().slice(0, 500);
+    if (!msg0) return { kind: "text", text: "Ask me anything about the notes you've allowed.", suggestions: CHAT_SUGGESTIONS };
+    const roster = buildRoster(docs);
+    const [msg, fixes] = fixNames(msg0, roster, docs);
+    const r = chatInner(docs, msg, today, context, roster);
+    if (fixes.length) {
+      const note = "I read " + fixes.map(([a, b]) => `“${a}” as ${b}`).join(", ") + ". ";
+      const key = r.kind === "answer" ? "summary" : "text";
+      r[key] = note + (r[key] || "");
+    }
+    return r;
+  }
+
+  function chatInner(docs, msg, today, context, roster) {
+    const files = new Set(docs.map((d) => d.path)).size;
     if (HELLO_RX.test(msg)) {
       return { kind: "text", suggestions: CHAT_SUGGESTIONS,
         text: `Hi! I can see ${plural(files, "file")} you've allowed. I only read them when you ask, and I keep nothing afterwards. What would you like to know?` };
@@ -1698,16 +1948,23 @@ if (typeof window !== "undefined") window.SBEngine = SBEngine;
   const receipt = (read) => ({ files_read: [...new Set(read)].sort(), files_read_count: new Set(read).size,
     outside_scope: [], blocked: [], network: [], written: 0 });
 
-  // Network requests this page itself has made since it loaded (should be none). The
-  // leak test's own attempts are left out: they are reported separately, as blocked.
+  // Network requests, split in two: what loaded while the page was opening (the page itself,
+  // or the site hosting it), and anything after that, while you use it (should be none).
+  // The leak test's own attempts are left out: they are reported separately, as blocked.
   const LEAK_TEST_MARK = "second-brain-leak-test";
-  function networkSinceLoad() {
+  let readyAt = null;
+  const markReady = () => setTimeout(() => { readyAt = performance.now(); }, 3000);
+  if (document.readyState === "complete") markReady(); else window.addEventListener("load", markReady);
+  function networkRequests() {
     try {
-      return performance.getEntriesByType("resource")
-        .filter((e) => e.startTime >= loadedAt && /^https?:/i.test(e.name) && !e.name.includes(LEAK_TEST_MARK))
-        .map((e) => e.name);
-    } catch (e) { return []; }
+      const all = performance.getEntriesByType("resource")
+        .filter((e) => /^https?:/i.test(e.name) && !e.name.includes(LEAK_TEST_MARK));
+      const cut = readyAt === null ? Infinity : readyAt;
+      return { loading: all.filter((e) => e.startTime < cut).map((e) => e.name),
+        using: all.filter((e) => e.startTime >= cut).map((e) => e.name) };
+    } catch (e) { return { loading: [], using: [] }; }
   }
+  const hostOf = (u) => { try { return new URL(u).host; } catch (e) { return u; } };
 
   const routes = {
     "GET /api/state": () => {
@@ -1755,10 +2012,12 @@ if (typeof window !== "undefined") window.SBEngine = SBEngine;
       return { file: f.display, path: f.path, path_display: `${ROOT}/${f.display}`, line: n, total: lines.length, lines: out };
     },
     "GET /api/ledger": () => {
-      const net = networkSinceLoad();
+      const net = networkRequests();
       return { demo: true, files_read: readCounts.size, reads_total: [...readCounts.values()].reduce((a, b) => a + b, 0),
         reads_outside_scope: 0, reads_switched_off: 0, writes_blocked: 0, net_blocked: 0, exec_blocked: 0,
-        net_loopback: 0, test_blocks: 0, network_requests: net.length, network_list: net.slice(-10), events: [], pid: null };
+        net_loopback: 0, test_blocks: 0, network_requests: net.using.length, network_list: net.using.slice(-10),
+        load_requests: net.loading.length, load_hosts: [...new Set(net.loading.map(hostOf))], ready: readyAt !== null,
+        events: [], pid: null };
     },
     "POST /api/leaktest": async () => ({ results: await browserLeakTest() }),
     "POST /api/forget": () => { off.clear(); readCounts.clear(); return { ok: true }; },
@@ -1827,10 +2086,14 @@ function h(tag, attrs, ...kids) {
   return el;
 }
 
+// This launch's secret key arrives in the part of the address after '#', which the browser never
+// sends anywhere. Only this window has it; other programs on the computer are refused without it.
+const KEY = (new URLSearchParams(location.hash.slice(1))).get("key") || "";
+
 async function api(path, body) {
   // As a shareable web page, the same answers are worked out inside this browser instead.
   if (window.SB_BACKEND) return window.SB_BACKEND(path, body);
-  const opts = { headers: { "X-Second-Brain": "1" } };
+  const opts = { headers: { "X-Second-Brain-Key": KEY } };
   if (body !== undefined) {
     opts.method = "POST";
     opts.headers["Content-Type"] = "application/json";
@@ -1838,8 +2101,19 @@ async function api(path, body) {
   }
   const res = await fetch(path, opts);
   const json = await res.json();
+  if (json.need_key) showNeedKey();
   if (!res.ok) throw new Error(json.error || res.statusText);
   return json;
+}
+
+function showNeedKey() {
+  if ($("#needKey")) return;
+  document.body.append(h("div", { class: "need-key", id: "needKey", role: "alert" },
+    h("div", { class: "need-key-box" },
+      h("h2", {}, "Open Second Brain from its own link"),
+      h("p", {}, "For your safety, only the window Second Brain opens can talk to it. Each launch has a new secret key, "
+        + "and this window doesn't have it, so the app refused to answer."),
+      h("p", {}, "Use the link Second Brain printed when it started (it ends in #key=…), or start the app again."))));
 }
 
 let STATE = null;
@@ -2053,8 +2327,95 @@ async function loadBrief(id) {
   out.replaceChildren(h("div", { class: "spinner" }, "Reading your notes…"));
   const { data, receipt, ms } = await api("/api/brief", { id });
   if (data.error) return out.replaceChildren(h("div", { class: "error" }, data.error));
-  out.replaceChildren(...renderBrief(data, { ms }), receiptEl(receipt, "This brief"));
+  out.replaceChildren(...renderBrief(data, { ms }), aiBlock(briefRequest(data), briefQuotes(data)), receiptEl(receipt, "This brief"));
   refreshTrust();
+}
+
+// ---------------------------------------------------------------- optional local AI write-ups
+// Only the quotes already on screen are sent, only to this computer (127.0.0.1).
+function briefRequest(b) {
+  const m = b.meeting;
+  return `Brief me for "${m.title}"${m.attendees.length ? " with " + m.attendees.join(", ") : ""}. `
+    + "Lead with what needs action, then what changed.";
+}
+function briefQuotes(b) {
+  const out = [], seen = new Set();
+  const add = (text, source) => { if (text && source && !seen.has(text) && out.length < 20) { seen.add(text); out.push({ text, source }); } };
+  const order = ["changed", "actions", "questions", "decisions", "last", "drafts"];
+  for (const id of order) {
+    const s = b.sections.find((x) => x.id === id);
+    if (!s) continue;
+    for (const it of s.items) {
+      if (it.before) add(it.before.text, it.before.source);
+      add(it.text, it.source);
+      for (const g of it.gaps || []) add(g.suggestion.text, g.suggestion.source);
+    }
+  }
+  return out;
+}
+const answerQuotes = (d) => (d.items || []).map((it) => ({ text: it.text, source: it.source }));
+
+function aiBlock(request, quotes) {
+  const ai = STATE && STATE.ai;
+  if (!ai || !ai.available || !quotes.length) return null;
+  const box = h("div", { class: "ai-box" });
+  const run = async () => {
+    box.replaceChildren(h("div", { class: "spinner" }, `Writing it up on this computer with ${ai.model}… (only the quotes above are used)`));
+    try {
+      const { data } = await api("/api/ai", { request, items: quotes.map((q) => ({ text: q.text, file: q.source.file, date: q.source.date_label })) });
+      box.replaceChildren(data.error ? h("div", { class: "error" }, data.error) : aiResult(data, quotes));
+    } catch (e) {
+      box.replaceChildren(h("div", { class: "error" }, "The local AI didn't answer: " + e.message));
+    }
+    refreshTrust();
+  };
+  box.append(h("button", { class: "ai-btn", onclick: run, title: `Uses ${ai.model} on this computer. Nothing leaves it.` },
+    "✨ Write it up with local AI", h("span", { class: "ai-model" }, ai.model)));
+  return box;
+}
+function aiResult(r, quotes) {
+  const cite = (n) => {
+    const q = quotes[n - 1];
+    return q ? h("button", { class: "cite", title: `${q.source.file}, line ${q.source.line}: “${q.text}”`,
+      onclick: () => openSource(q.source.path, q.source.line, q.source.file) }, String(n)) : null;
+  };
+  return h("div", { class: "card ai-card" },
+    h("div", { class: "ai-head" }, "✨ Written on this computer by ", h("b", {}, r.model), ` in ${(r.ms / 1000).toFixed(1)} s`),
+    h("div", { class: "sub" }, "Written only from the quotes above. Each number links to the note it came from. AI can word things "
+      + "imperfectly, so check the ones that matter."),
+    r.no_answer && !r.points.length ? h("p", {}, "The AI says your notes don't answer this.") :
+      h("ul", { class: "ai-points" }, r.points.map((p) => h("li", {}, p.text, " ",
+        p.cites.map(cite), p.cites.length || r.no_answer ? null : h("span", { class: "flag overdue" }, "no source given: check this")))),
+    r.points.some((p) => p.bad_cites.length) ? h("div", { class: "more-src" },
+      "Some source numbers the AI gave don't exist, so they were removed.") : null);
+}
+
+function briefAsText(b) {
+  const m = b.meeting, L = [`${m.title}: ${m.date_label}`];
+  if (m.attendees.length) L.push(`With: ${m.attendees.join(", ")}`);
+  if (b.talking_points.length) { L.push("", "If you only read one thing:"); b.talking_points.forEach((p, i) => L.push(`${i + 1}. ${p.text}`)); }
+  for (const s of b.sections) {
+    L.push("", s.title.toUpperCase());
+    for (const it of s.items) {
+      const src = it.source ? ` (${it.source.file}, line ${it.source.line}, ${it.source.date_label})` : "";
+      L.push(`- ${it.headline ? it.headline + ": " : ""}${it.text}${src}`);
+      if (it.before) L.push(`    before: ${it.before.text}`);
+    }
+  }
+  return L.join("\n");
+}
+function copyButton(getText) {
+  const btn = h("button", { class: "ghost small", title: "Copy this brief as plain text. It stays on this computer." }, "Copy as text");
+  btn.addEventListener("click", async () => {
+    const text = getText();
+    try { await navigator.clipboard.writeText(text); btn.textContent = "Copied"; }
+    catch (e) {
+      const ta = h("textarea", { class: "copy-fallback", readonly: true, "aria-label": "Brief as text" });
+      ta.value = text; btn.replaceWith(ta); ta.select();
+    }
+    setTimeout(() => { if (btn.isConnected) btn.textContent = "Copy as text"; }, 2000);
+  });
+  return btn;
 }
 
 // Shared by the meeting tab and the chat. In the chat (compact), sections fold up.
@@ -2062,7 +2423,8 @@ function renderBrief(data, opts = {}) {
   const m = data.meeting;
   const parts = [
     h("div", { class: "brief-head" + (opts.compact ? " compact" : "") },
-      h(opts.compact ? "h2" : "h1", {}, m.title),
+      h("div", { class: "brief-title-row" },
+        h(opts.compact ? "h2" : "h1", {}, m.title), copyButton(() => briefAsText(data))),
       h("div", { class: "brief-meta" }, m.date_label,
         opts.ms !== undefined ? ` · prepared from ${data.stats.lines_considered} lines of your notes in ${opts.ms} ms` : ""),
       m.attendees.length ? h("div", { class: "people" }, m.attendees.map((a) => h("span", { class: "person" }, a))) : null,
@@ -2128,10 +2490,11 @@ function miniReceipt(r) {
       + " · wrote 0 · sent nothing · kept nothing"),
     h("ul", {}, r.files_read.map((f) => h("li", {}, f))));
 }
-function renderReply(d, receipt) {
+function renderReply(d, receipt, question) {
   const parts = [];
   if (d.kind === "brief") {
-    parts.push(h("p", { class: "bot-text" }, d.text), ...renderBrief(d.brief, { compact: true }));
+    parts.push(h("p", { class: "bot-text" }, d.text), ...renderBrief(d.brief, { compact: true }),
+      aiBlock(question ? `${question}. ${briefRequest(d.brief)}` : briefRequest(d.brief), briefQuotes(d.brief)));
   } else if (d.kind === "answer") {
     parts.push(h("p", { class: "summary " + d.status }, d.summary));
     if (d.confidence) parts.push(h("div", { class: "conf" }, d.confidence === "high"
@@ -2139,6 +2502,7 @@ function renderReply(d, receipt) {
       : "Confidence: medium. These lines match part of your question, so check the sources."));
     if (d.items.length) parts.push(h("div", { class: "card answer-card" }, d.items.map(itemEl)));
     if ((d.gaps || []).length) parts.push(h("ul", { class: "plain-list" }, d.gaps.map((g) => h("li", {}, g.text))));
+    if (d.status === "found") parts.push(aiBlock(question || "Summarise what these notes say.", answerQuotes(d)));
   } else {
     parts.push(h("p", { class: "bot-text" }, d.text));
     if (d.lines) parts.push(h("ul", { class: "help-list" }, d.lines.map((l) => h("li", {}, l))));
@@ -2158,6 +2522,13 @@ async function sendChat(text) {
   const pending = botMsg([h("div", { class: "spinner" }, "Reading your notes…")]);
   chatLog.append(pending);
   pending.scrollIntoView({ block: "nearest" });
+  if (!STATE) {                     // asked before the page finished loading: wait for it
+    try { await refreshState(); } catch (e) { /* shown below */ }
+  }
+  if (!STATE) {
+    pending.replaceWith(botMsg([h("div", { class: "error" }, "I couldn't reach Second Brain. Is it still running?")]));
+    return;
+  }
   if (!STATE.roots.length) {
     pending.replaceWith(botMsg([h("p", { class: "bot-text" }, "I can't see any notes yet. Add a folder on the left "
       + "(or use the sample notes) and ask again. Until then I have nothing to go on, and I won't guess.")]));
@@ -2166,7 +2537,7 @@ async function sendChat(text) {
   chatBusy = true;
   try {
     const { data, receipt } = await api("/api/chat", { message: text });
-    const reply = botMsg(renderReply(data, receipt));
+    const reply = botMsg(renderReply(data, receipt, text));
     pending.replaceWith(reply);
     reply.scrollIntoView({ block: "start", behavior: "smooth" });
   } catch (e) {
@@ -2231,6 +2602,19 @@ function leakResultsEl() {
     h("div", {}, h("div", {}, r.attempt), h("div", { class: "test-how" }, r.how))));
 }
 
+let lastCheckup = null;
+function checkupEl() {
+  if (!lastCheckup) return null;
+  const icon = { pass: "✓", warn: "!", fail: "✗", skip: "–" };
+  const label = { pass: "Passed", warn: "Look at this", fail: "Failed", skip: "Not used" };
+  return h("div", { class: "check-list" },
+    h("div", { class: "check-score" }, `${lastCheckup.passed} of ${lastCheckup.total} checks passed`,
+      h("span", { class: "more-src" }, ` · ${new Date().toLocaleTimeString()}`)),
+    lastCheckup.checks.map((c) => h("div", { class: "check-row " + c.status },
+      h("span", { class: "check-icon", "aria-label": label[c.status] }, icon[c.status]),
+      h("div", {}, h("div", { class: "check-name" }, c.name), h("div", { class: "test-how" }, c.detail)))));
+}
+
 function loadDemoProof(box, d) {
   const stat = (n, label, sub, good) => h("div", { class: "stat" },
     h("div", { class: "n " + (good ? "good" : "bad") }, n), h("div", { class: "l" }, label), sub ? h("div", { class: "s" }, sub) : null);
@@ -2242,10 +2626,15 @@ function loadDemoProof(box, d) {
         + "the page. No server does the thinking, and nothing you type is sent anywhere."),
       h("div", { class: "stats" },
         stat(d.files_read, "simulated files read", "bundled with this page, not anyone's real notes", true),
-        stat(d.network_requests, "network requests since the page loaded",
+        stat(d.network_requests, "network requests while you've used it",
           d.network_requests ? d.network_list.join(", ") : "counted by your browser's own performance log", d.network_requests === 0),
         stat(0, "of your own files read", "this demo can't see the files on your computer", true),
-        stat(0, "things saved in your browser", "no cookies or storage: refresh and the conversation is gone", true))),
+        stat(0, "things saved in your browser", "no cookies or storage: refresh and the conversation is gone", true)),
+      h("div", { class: "more-src" }, d.load_requests
+        ? `While the page was opening, your browser loaded ${d.load_requests} file${d.load_requests === 1 ? "" : "s"} to show it, `
+          + `from ${d.load_hosts.join(", ")} (the site hosting this page). That's the page arriving, before you typed anything. `
+          + "Nothing has been sent since."
+        : "Loading the page needed nothing beyond the page itself.")),
     h("div", { class: "card" },
       h("h2", {}, "Try to make it leak"),
       h("div", { class: "sub" }, "This makes the page itself try to send data to another website. Your browser should refuse every attempt before anything is sent."),
@@ -2282,7 +2671,19 @@ async function loadProof() {
     net_loopback: ["Local", "ok"], exec_allowed: ["Allowed", "ok"], read_outside: ["Unexpected read", "blocked"],
     read_switched_off: ["Read a switched-off file", "blocked"], forget: ["Forgot", "ok"],
   };
+  const checkBox = h("div", {}, checkupEl());
   box.replaceChildren(
+    h("div", { class: "card checkup" },
+      h("h2", {}, "Full check-up"),
+      h("div", { class: "sub" }, "One button tests every promise live, the way a sceptical judge would, and explains each result "
+        + "in plain words. Run it any time."),
+      h("button", { class: "primary", onclick: async () => {
+        checkBox.replaceChildren(h("div", { class: "spinner" }, "Checking every promise…"));
+        const { data } = await api("/api/checkup", {});
+        lastCheckup = data;
+        await loadProof();
+      } }, lastCheckup ? "Run the check-up again" : "Run the full check-up"),
+      checkBox),
     h("div", { class: "card" },
       h("h2", {}, "The one rule, checked live"),
       h("div", { class: "sub" }, "These numbers come from the privacy guard inside this app (Python audit hooks), not from a promise. " +
@@ -2324,10 +2725,35 @@ async function loadProof() {
   );
 }
 
+// ---------------------------------------------------------------- display options (this window only, not saved)
+$("#displayBtn").addEventListener("click", () => {
+  const open = $("#displayPanel").classList.toggle("hidden") === false;
+  $("#displayBtn").setAttribute("aria-expanded", String(open));
+});
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".display-wrap")) { $("#displayPanel").classList.add("hidden"); $("#displayBtn").setAttribute("aria-expanded", "false"); }
+});
+function pick(seg, btn) { for (const b of seg.querySelectorAll("button")) b.classList.toggle("on", b === btn); }
+$("#sizeSeg").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  document.documentElement.style.setProperty("--zoom", b.dataset.size); pick($("#sizeSeg"), b);
+});
+$("#themeSeg").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.theme) document.documentElement.setAttribute("data-theme", b.dataset.theme);
+  else document.documentElement.removeAttribute("data-theme");
+  pick($("#themeSeg"), b);
+});
+$("#easyRead").addEventListener("change", (e) => document.documentElement.classList.toggle("easy-read", e.target.checked));
+
 // ---------------------------------------------------------------- start
 (async function start() {
-  await refreshState();
-  await loadMeetings();
+  try {
+    await refreshState();
+    await loadMeetings();
+  } catch (e) {
+    return;                 // e.g. opened without this launch's key: the notice is already showing
+  }
   setInterval(refreshTrust, 5000);
 })();
 

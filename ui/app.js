@@ -21,10 +21,14 @@ function h(tag, attrs, ...kids) {
   return el;
 }
 
+// This launch's secret key arrives in the part of the address after '#', which the browser never
+// sends anywhere. Only this window has it; other programs on the computer are refused without it.
+const KEY = (new URLSearchParams(location.hash.slice(1))).get("key") || "";
+
 async function api(path, body) {
   // As a shareable web page, the same answers are worked out inside this browser instead.
   if (window.SB_BACKEND) return window.SB_BACKEND(path, body);
-  const opts = { headers: { "X-Second-Brain": "1" } };
+  const opts = { headers: { "X-Second-Brain-Key": KEY } };
   if (body !== undefined) {
     opts.method = "POST";
     opts.headers["Content-Type"] = "application/json";
@@ -32,8 +36,19 @@ async function api(path, body) {
   }
   const res = await fetch(path, opts);
   const json = await res.json();
+  if (json.need_key) showNeedKey();
   if (!res.ok) throw new Error(json.error || res.statusText);
   return json;
+}
+
+function showNeedKey() {
+  if ($("#needKey")) return;
+  document.body.append(h("div", { class: "need-key", id: "needKey", role: "alert" },
+    h("div", { class: "need-key-box" },
+      h("h2", {}, "Open Second Brain from its own link"),
+      h("p", {}, "For your safety, only the window Second Brain opens can talk to it. Each launch has a new secret key, "
+        + "and this window doesn't have it, so the app refused to answer."),
+      h("p", {}, "Use the link Second Brain printed when it started (it ends in #key=…), or start the app again."))));
 }
 
 let STATE = null;
@@ -247,8 +262,95 @@ async function loadBrief(id) {
   out.replaceChildren(h("div", { class: "spinner" }, "Reading your notes…"));
   const { data, receipt, ms } = await api("/api/brief", { id });
   if (data.error) return out.replaceChildren(h("div", { class: "error" }, data.error));
-  out.replaceChildren(...renderBrief(data, { ms }), receiptEl(receipt, "This brief"));
+  out.replaceChildren(...renderBrief(data, { ms }), aiBlock(briefRequest(data), briefQuotes(data)), receiptEl(receipt, "This brief"));
   refreshTrust();
+}
+
+// ---------------------------------------------------------------- optional local AI write-ups
+// Only the quotes already on screen are sent, only to this computer (127.0.0.1).
+function briefRequest(b) {
+  const m = b.meeting;
+  return `Brief me for "${m.title}"${m.attendees.length ? " with " + m.attendees.join(", ") : ""}. `
+    + "Lead with what needs action, then what changed.";
+}
+function briefQuotes(b) {
+  const out = [], seen = new Set();
+  const add = (text, source) => { if (text && source && !seen.has(text) && out.length < 20) { seen.add(text); out.push({ text, source }); } };
+  const order = ["changed", "actions", "questions", "decisions", "last", "drafts"];
+  for (const id of order) {
+    const s = b.sections.find((x) => x.id === id);
+    if (!s) continue;
+    for (const it of s.items) {
+      if (it.before) add(it.before.text, it.before.source);
+      add(it.text, it.source);
+      for (const g of it.gaps || []) add(g.suggestion.text, g.suggestion.source);
+    }
+  }
+  return out;
+}
+const answerQuotes = (d) => (d.items || []).map((it) => ({ text: it.text, source: it.source }));
+
+function aiBlock(request, quotes) {
+  const ai = STATE && STATE.ai;
+  if (!ai || !ai.available || !quotes.length) return null;
+  const box = h("div", { class: "ai-box" });
+  const run = async () => {
+    box.replaceChildren(h("div", { class: "spinner" }, `Writing it up on this computer with ${ai.model}… (only the quotes above are used)`));
+    try {
+      const { data } = await api("/api/ai", { request, items: quotes.map((q) => ({ text: q.text, file: q.source.file, date: q.source.date_label })) });
+      box.replaceChildren(data.error ? h("div", { class: "error" }, data.error) : aiResult(data, quotes));
+    } catch (e) {
+      box.replaceChildren(h("div", { class: "error" }, "The local AI didn't answer: " + e.message));
+    }
+    refreshTrust();
+  };
+  box.append(h("button", { class: "ai-btn", onclick: run, title: `Uses ${ai.model} on this computer. Nothing leaves it.` },
+    "✨ Write it up with local AI", h("span", { class: "ai-model" }, ai.model)));
+  return box;
+}
+function aiResult(r, quotes) {
+  const cite = (n) => {
+    const q = quotes[n - 1];
+    return q ? h("button", { class: "cite", title: `${q.source.file}, line ${q.source.line}: “${q.text}”`,
+      onclick: () => openSource(q.source.path, q.source.line, q.source.file) }, String(n)) : null;
+  };
+  return h("div", { class: "card ai-card" },
+    h("div", { class: "ai-head" }, "✨ Written on this computer by ", h("b", {}, r.model), ` in ${(r.ms / 1000).toFixed(1)} s`),
+    h("div", { class: "sub" }, "Written only from the quotes above. Each number links to the note it came from. AI can word things "
+      + "imperfectly, so check the ones that matter."),
+    r.no_answer && !r.points.length ? h("p", {}, "The AI says your notes don't answer this.") :
+      h("ul", { class: "ai-points" }, r.points.map((p) => h("li", {}, p.text, " ",
+        p.cites.map(cite), p.cites.length || r.no_answer ? null : h("span", { class: "flag overdue" }, "no source given: check this")))),
+    r.points.some((p) => p.bad_cites.length) ? h("div", { class: "more-src" },
+      "Some source numbers the AI gave don't exist, so they were removed.") : null);
+}
+
+function briefAsText(b) {
+  const m = b.meeting, L = [`${m.title}: ${m.date_label}`];
+  if (m.attendees.length) L.push(`With: ${m.attendees.join(", ")}`);
+  if (b.talking_points.length) { L.push("", "If you only read one thing:"); b.talking_points.forEach((p, i) => L.push(`${i + 1}. ${p.text}`)); }
+  for (const s of b.sections) {
+    L.push("", s.title.toUpperCase());
+    for (const it of s.items) {
+      const src = it.source ? ` (${it.source.file}, line ${it.source.line}, ${it.source.date_label})` : "";
+      L.push(`- ${it.headline ? it.headline + ": " : ""}${it.text}${src}`);
+      if (it.before) L.push(`    before: ${it.before.text}`);
+    }
+  }
+  return L.join("\n");
+}
+function copyButton(getText) {
+  const btn = h("button", { class: "ghost small", title: "Copy this brief as plain text. It stays on this computer." }, "Copy as text");
+  btn.addEventListener("click", async () => {
+    const text = getText();
+    try { await navigator.clipboard.writeText(text); btn.textContent = "Copied"; }
+    catch (e) {
+      const ta = h("textarea", { class: "copy-fallback", readonly: true, "aria-label": "Brief as text" });
+      ta.value = text; btn.replaceWith(ta); ta.select();
+    }
+    setTimeout(() => { if (btn.isConnected) btn.textContent = "Copy as text"; }, 2000);
+  });
+  return btn;
 }
 
 // Shared by the meeting tab and the chat. In the chat (compact), sections fold up.
@@ -256,7 +358,8 @@ function renderBrief(data, opts = {}) {
   const m = data.meeting;
   const parts = [
     h("div", { class: "brief-head" + (opts.compact ? " compact" : "") },
-      h(opts.compact ? "h2" : "h1", {}, m.title),
+      h("div", { class: "brief-title-row" },
+        h(opts.compact ? "h2" : "h1", {}, m.title), copyButton(() => briefAsText(data))),
       h("div", { class: "brief-meta" }, m.date_label,
         opts.ms !== undefined ? ` · prepared from ${data.stats.lines_considered} lines of your notes in ${opts.ms} ms` : ""),
       m.attendees.length ? h("div", { class: "people" }, m.attendees.map((a) => h("span", { class: "person" }, a))) : null,
@@ -322,10 +425,11 @@ function miniReceipt(r) {
       + " · wrote 0 · sent nothing · kept nothing"),
     h("ul", {}, r.files_read.map((f) => h("li", {}, f))));
 }
-function renderReply(d, receipt) {
+function renderReply(d, receipt, question) {
   const parts = [];
   if (d.kind === "brief") {
-    parts.push(h("p", { class: "bot-text" }, d.text), ...renderBrief(d.brief, { compact: true }));
+    parts.push(h("p", { class: "bot-text" }, d.text), ...renderBrief(d.brief, { compact: true }),
+      aiBlock(question ? `${question}. ${briefRequest(d.brief)}` : briefRequest(d.brief), briefQuotes(d.brief)));
   } else if (d.kind === "answer") {
     parts.push(h("p", { class: "summary " + d.status }, d.summary));
     if (d.confidence) parts.push(h("div", { class: "conf" }, d.confidence === "high"
@@ -333,6 +437,7 @@ function renderReply(d, receipt) {
       : "Confidence: medium. These lines match part of your question, so check the sources."));
     if (d.items.length) parts.push(h("div", { class: "card answer-card" }, d.items.map(itemEl)));
     if ((d.gaps || []).length) parts.push(h("ul", { class: "plain-list" }, d.gaps.map((g) => h("li", {}, g.text))));
+    if (d.status === "found") parts.push(aiBlock(question || "Summarise what these notes say.", answerQuotes(d)));
   } else {
     parts.push(h("p", { class: "bot-text" }, d.text));
     if (d.lines) parts.push(h("ul", { class: "help-list" }, d.lines.map((l) => h("li", {}, l))));
@@ -352,6 +457,13 @@ async function sendChat(text) {
   const pending = botMsg([h("div", { class: "spinner" }, "Reading your notes…")]);
   chatLog.append(pending);
   pending.scrollIntoView({ block: "nearest" });
+  if (!STATE) {                     // asked before the page finished loading: wait for it
+    try { await refreshState(); } catch (e) { /* shown below */ }
+  }
+  if (!STATE) {
+    pending.replaceWith(botMsg([h("div", { class: "error" }, "I couldn't reach Second Brain. Is it still running?")]));
+    return;
+  }
   if (!STATE.roots.length) {
     pending.replaceWith(botMsg([h("p", { class: "bot-text" }, "I can't see any notes yet. Add a folder on the left "
       + "(or use the sample notes) and ask again. Until then I have nothing to go on, and I won't guess.")]));
@@ -360,7 +472,7 @@ async function sendChat(text) {
   chatBusy = true;
   try {
     const { data, receipt } = await api("/api/chat", { message: text });
-    const reply = botMsg(renderReply(data, receipt));
+    const reply = botMsg(renderReply(data, receipt, text));
     pending.replaceWith(reply);
     reply.scrollIntoView({ block: "start", behavior: "smooth" });
   } catch (e) {
@@ -425,6 +537,19 @@ function leakResultsEl() {
     h("div", {}, h("div", {}, r.attempt), h("div", { class: "test-how" }, r.how))));
 }
 
+let lastCheckup = null;
+function checkupEl() {
+  if (!lastCheckup) return null;
+  const icon = { pass: "✓", warn: "!", fail: "✗", skip: "–" };
+  const label = { pass: "Passed", warn: "Look at this", fail: "Failed", skip: "Not used" };
+  return h("div", { class: "check-list" },
+    h("div", { class: "check-score" }, `${lastCheckup.passed} of ${lastCheckup.total} checks passed`,
+      h("span", { class: "more-src" }, ` · ${new Date().toLocaleTimeString()}`)),
+    lastCheckup.checks.map((c) => h("div", { class: "check-row " + c.status },
+      h("span", { class: "check-icon", "aria-label": label[c.status] }, icon[c.status]),
+      h("div", {}, h("div", { class: "check-name" }, c.name), h("div", { class: "test-how" }, c.detail)))));
+}
+
 function loadDemoProof(box, d) {
   const stat = (n, label, sub, good) => h("div", { class: "stat" },
     h("div", { class: "n " + (good ? "good" : "bad") }, n), h("div", { class: "l" }, label), sub ? h("div", { class: "s" }, sub) : null);
@@ -436,10 +561,15 @@ function loadDemoProof(box, d) {
         + "the page. No server does the thinking, and nothing you type is sent anywhere."),
       h("div", { class: "stats" },
         stat(d.files_read, "simulated files read", "bundled with this page, not anyone's real notes", true),
-        stat(d.network_requests, "network requests since the page loaded",
+        stat(d.network_requests, "network requests while you've used it",
           d.network_requests ? d.network_list.join(", ") : "counted by your browser's own performance log", d.network_requests === 0),
         stat(0, "of your own files read", "this demo can't see the files on your computer", true),
-        stat(0, "things saved in your browser", "no cookies or storage: refresh and the conversation is gone", true))),
+        stat(0, "things saved in your browser", "no cookies or storage: refresh and the conversation is gone", true)),
+      h("div", { class: "more-src" }, d.load_requests
+        ? `While the page was opening, your browser loaded ${d.load_requests} file${d.load_requests === 1 ? "" : "s"} to show it, `
+          + `from ${d.load_hosts.join(", ")} (the site hosting this page). That's the page arriving, before you typed anything. `
+          + "Nothing has been sent since."
+        : "Loading the page needed nothing beyond the page itself.")),
     h("div", { class: "card" },
       h("h2", {}, "Try to make it leak"),
       h("div", { class: "sub" }, "This makes the page itself try to send data to another website. Your browser should refuse every attempt before anything is sent."),
@@ -476,7 +606,19 @@ async function loadProof() {
     net_loopback: ["Local", "ok"], exec_allowed: ["Allowed", "ok"], read_outside: ["Unexpected read", "blocked"],
     read_switched_off: ["Read a switched-off file", "blocked"], forget: ["Forgot", "ok"],
   };
+  const checkBox = h("div", {}, checkupEl());
   box.replaceChildren(
+    h("div", { class: "card checkup" },
+      h("h2", {}, "Full check-up"),
+      h("div", { class: "sub" }, "One button tests every promise live, the way a sceptical judge would, and explains each result "
+        + "in plain words. Run it any time."),
+      h("button", { class: "primary", onclick: async () => {
+        checkBox.replaceChildren(h("div", { class: "spinner" }, "Checking every promise…"));
+        const { data } = await api("/api/checkup", {});
+        lastCheckup = data;
+        await loadProof();
+      } }, lastCheckup ? "Run the check-up again" : "Run the full check-up"),
+      checkBox),
     h("div", { class: "card" },
       h("h2", {}, "The one rule, checked live"),
       h("div", { class: "sub" }, "These numbers come from the privacy guard inside this app (Python audit hooks), not from a promise. " +
@@ -518,9 +660,34 @@ async function loadProof() {
   );
 }
 
+// ---------------------------------------------------------------- display options (this window only, not saved)
+$("#displayBtn").addEventListener("click", () => {
+  const open = $("#displayPanel").classList.toggle("hidden") === false;
+  $("#displayBtn").setAttribute("aria-expanded", String(open));
+});
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".display-wrap")) { $("#displayPanel").classList.add("hidden"); $("#displayBtn").setAttribute("aria-expanded", "false"); }
+});
+function pick(seg, btn) { for (const b of seg.querySelectorAll("button")) b.classList.toggle("on", b === btn); }
+$("#sizeSeg").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  document.documentElement.style.setProperty("--zoom", b.dataset.size); pick($("#sizeSeg"), b);
+});
+$("#themeSeg").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.theme) document.documentElement.setAttribute("data-theme", b.dataset.theme);
+  else document.documentElement.removeAttribute("data-theme");
+  pick($("#themeSeg"), b);
+});
+$("#easyRead").addEventListener("change", (e) => document.documentElement.classList.toggle("easy-read", e.target.checked));
+
 // ---------------------------------------------------------------- start
 (async function start() {
-  await refreshState();
-  await loadMeetings();
+  try {
+    await refreshState();
+    await loadMeetings();
+  } catch (e) {
+    return;                 // e.g. opened without this launch's key: the notice is already showing
+  }
   setInterval(refreshTrust, 5000);
 })();

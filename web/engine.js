@@ -142,7 +142,7 @@ const SBEngine = (() => {
   const TEXT_EXT = [".md", ".markdown", ".txt", ".text", ".org"], CAL_EXT = [".ics"], LINK_EXT = [".url", ".webloc"];
   const IMAGE_EXT = [".png", ".jpg", ".jpeg", ".gif", ".heic", ".bmp", ".webp", ".tif", ".tiff"];
   const KIND_LABEL = { note: "Note", calendar: "Calendar", link: "Saved link", links: "Saved links",
-    reminders: "Reminders", draft: "Draft", screenshot: "Screenshot" };
+    reminders: "Reminders", draft: "Draft", screenshot: "Screenshot", actions: "Action list" };
   const extOf = (name) => { const i = name.lastIndexOf("."); return i > 0 ? name.slice(i).toLowerCase() : ""; };
   const baseName = (p) => p.split("/").pop();
   const stemName = (p) => { const b = baseName(p); const i = b.lastIndexOf("."); return i > 0 ? b.slice(0, i) : b; };
@@ -151,6 +151,7 @@ const SBEngine = (() => {
     const name = baseName(display).toLowerCase(), ext = extOf(name);
     const parts = display.toLowerCase().split("/").slice(0, -1);
     if (CAL_EXT.includes(ext)) return "calendar";
+    if (ext === ".csv") return "actions";
     if (LINK_EXT.includes(ext)) return "link";
     if (IMAGE_EXT.includes(ext)) return "screenshot";
     if (TEXT_EXT.includes(ext)) {
@@ -189,9 +190,62 @@ const SBEngine = (() => {
     return names;
   }
 
+  // ---- spreadsheet action lists (.csv), as in sources.csv_rows_to_lines ----
+  function parseCsv(text) {
+    const rows = []; let row = [], cell = "", q = false, i = 0;
+    while (i < text.length) {
+      const c = text[i];
+      if (q) {
+        if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i += 2; continue; } q = false; i++; continue; }
+        cell += c; i++; continue;
+      }
+      if (c === '"') { q = true; i++; continue; }
+      if (c === ",") { row.push(cell); cell = ""; i++; continue; }
+      if (c === "\r") { i++; continue; }
+      if (c === "\n") { row.push(cell); rows.push(row); row = []; cell = ""; i++; continue; }
+      cell += c; i++;
+    }
+    if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
+    return rows;
+  }
+  const CSV_COLS = { action: ["action", "task", "todo", "to do", "item", "what", "description"],
+    owner: ["owner", "who", "assignee", "assigned to", "person", "lead"],
+    due: ["due", "due date", "deadline", "by", "date", "when"],
+    status: ["status", "done", "state", "complete", "completed"] };
+  const DONE_WORDS = new Set(["done", "complete", "completed", "closed", "finished", "yes", "y", "true", "x", "✅"]);
+  function csvRowsToLines(text) {
+    const rows = parseCsv(text);
+    if (!rows.length) return [[], []];
+    const header = rows[0].map((c) => c.trim().toLowerCase());
+    const col = {};
+    for (const [key, names] of Object.entries(CSV_COLS)) {
+      for (let i = 0; i < header.length; i++) {
+        if (names.includes(header[i]) && !Object.values(col).includes(i)) { col[key] = i; break; }
+      }
+    }
+    const hasHeader = "action" in col;
+    const body = hasHeader ? rows.slice(1) : rows;
+    const lines = hasHeader ? ["# " + rows[0].join(", ")] : [], owners = [];
+    for (const r of body) {
+      const cell = (k) => (k in col && col[k] < r.length ? r[col[k]].trim() : "");
+      const action = hasHeader ? cell("action") : r.map((c) => c.trim()).filter(Boolean).join(" ");
+      if (!action) { lines.push(""); continue; }
+      const owner = cell("owner"), due = cell("due"), status = cell("status").toLowerCase();
+      const who = ["", "me", "i", "you", "myself"].includes(owner.toLowerCase()) ? "me" : owner;
+      if (who !== "me") owners.push(owner);
+      lines.push(`- [${DONE_WORDS.has(status) ? "x" : " "}] ${action} · ${who}` + (due ? ` · by ${due}` : ""));
+    }
+    return [lines, owners];
+  }
+
   function readDoc(f) {
     const kind = f.kind, mtime = fromIso(f.modified), text = f.text || "";
     if (kind === "calendar") return readIcs(f, mtime);
+    if (kind === "actions") {
+      const [lines, owners] = csvRowsToLines(text);
+      return { path: f.path, display: f.display, kind, title: stemName(f.display), date: mtime,
+        dateSource: "file time (guessed)", lines, people: [], owners, events: [], url: null };
+    }
     if (kind === "link") {
       let m = text.match(/^\s*URL\s*=\s*(\S+)/im), url = null;
       if (m) url = m[1];
@@ -395,7 +449,7 @@ review talk topic plan planning team context thanks follow followup again since 
   function buildRoster(docs) {
     const r = new Roster();
     for (const d of docs) {
-      for (const p of d.people) r.add(p);
+      for (const p of d.people.concat(d.owners || [])) r.add(p);
       for (const e of d.events) { for (const a of e.attendees) r.add(a); if (e.me) r.me = e.me; }
       if (d.kind !== "calendar") {
         for (const ln of d.lines) for (const m of ln.matchAll(/(?<![\w.])@([A-Za-z]{2,})\b(?![.@])/g)) r.add(m[1]);
@@ -478,7 +532,11 @@ review talk topic plan planning team context thanks follow followup again since 
       if (!reason && d.kind === "reminders") reason = "in your reminders";
       if (reason) { f.tags.add("action"); f.why.action = reason; }
     }
-    if (f.tags.has("action") || f.tags.has("done") || f.tags.has("question")) {
+    if (d.kind === "actions" && t.includes(" · ")) {
+      const who = t.split(" · ")[1].trim().toLowerCase();
+      f.owner = ["me", "i", "you"].includes(who) ? "you" : (who.split(/\s+/)[0] || null);
+    }
+    if (f.owner === null && (f.tags.has("action") || f.tags.has("done") || f.tags.has("question"))) {
       for (const first of roster.full.keys()) {
         if (new RegExp(`(?:^|[\\s(@])${first}\\s+(?:to|will|needs to|should)\\s+(?!be\\b)\\w+`, "i").test(t)) { f.owner = first; break; }
       }
@@ -975,22 +1033,42 @@ month week day end anything original amount`.split(/\s+/).map(stem));
         summary: items.length ? "Things your notes say differently over time, newest first:" : "I didn't find notes that contradict each other.",
         items, gaps: askGaps(context) };
     }
-    const intent = /\b(decid\w*|decision|agree\w*|go with|choose|chose)\b/i.test(q) ? "decision"
-      : /\bwhen\b|\bdate\b|\bdeadline\b/i.test(q) ? "when"
-      : /\b(how much|budget|cost|costs|price|pricing|spend)\b|[£$€]/i.test(q) ? "amount"
-      : /\bwho\b/i.test(q) ? "who"
-      : /\b(link|article|url|saved|bookmark)\b/i.test(q) ? "link" : "";
-    let content = q.replace(Q_WORDS, " ");
-    if (intent === "decision") content = content.replace(/\b(decid\w*|decision|agree\w*|go with|choose|chose)\b/gi, " ");
+    const period = findPeriod(q, today);
+    const qx = period ? q.slice(0, period[3][0]) + " " + q.slice(period[3][1]) : q;
+    const inPeriod = period ? (f) => period[0] <= f.date && f.date <= period[1] : () => true;
+    const plabel = period ? `${period[2]} (${fmtDate(period[0])}` + (period[1] !== period[0] ? ` to ${fmtDate(period[1])})` : ")") : "";
+    let intent = /\b(decid\w*|decision\w*|agree\w*|go with|choose|chose)\b/i.test(qx) ? "decision"
+      : /\bwhen\b|\bdate\b|\bdeadline\b/i.test(qx) ? "when"
+      : /\b(how much|budget|cost|costs|price|pricing|spend)\b|[£$€]/i.test(qx) ? "amount"
+      : /\bwho\b/i.test(qx) ? "who"
+      : /\b(link|article|url|saved|bookmark)\b/i.test(qx) ? "link" : "";
+    let content = qx.replace(Q_WORDS, " ");
+    if (intent === "decision") content = content.replace(/\b(decid\w*|decision\w*|agree\w*|go with|choose|chose)\b/gi, " ");
+    let only = intent === "decision" ? "decision" : null;
+    if (period) {
+      for (const [kind, rx] of KIND_WORDS) {
+        if (rx.test(content)) { only = only || kind; content = content.replace(new RegExp(rx.source, "gi"), " "); }
+      }
+    }
     const words = (content.match(/[A-Za-z0-9£$€']+/g) || []).filter((w) => tokens(w).length && !GENERIC.has(tokens(w)[0]));
-    let qt = tokens(content).filter((w) => !GENERIC.has(w));
-    if (!qt.length) qt = tokens(content);
-    const query = new Map(qt.map((w) => [w, 1.0]));
+    const specific = tokens(content).filter((w) => !GENERIC.has(w));
+    if (period && !specific.length) return periodOverview(frags, period, plabel, context, only);
+    let qt = specific.length ? specific : tokens(content);
     const shown = new Map();
     for (const w of words) { const lw = w.toLowerCase(); shown.set(tokens(w)[0], lw.endsWith("'s") ? lw.slice(0, -2) : lw); }
     const sh = (w) => shown.get(w) || w;
+    const query = new Map(), corrections = [];
+    for (const w of qt) {
+      const c = ix.df.get(w) ? null : closest(w, ix.df);
+      if (c && !query.has(c) && !qt.includes(c)) { corrections.push([sh(w), c]); shown.set(c, c); query.set(c, 1.0); }
+      else query.set(w, 1.0);
+    }
+    qt = [...query.keys()];
+    const note = corrections.length ? "I read " + corrections.map(([a, b]) => `“${a}” as “${b}”`).join(", ") + ". " : "";
+    if (!intent && (query.has("budget") || query.has("pricing"))) intent = "amount";
     const scored = [];
     for (const f of frags) {
+      if (!inPeriod(f)) continue;
       let s = ix.bm25(query, f);
       if (s <= 0) continue;
       if (intent === "decision" && f.tags.has("decision")) s *= 1.6;
@@ -1012,20 +1090,21 @@ month week day end anything original amount`.split(/\s+/).map(stem));
     if (!sortedScored.length) {
       const files = new Set(frags.map((f) => f.doc.path)).size;
       const w = qt.slice(0, 4).map((x) => `“${sh(x)}”`).join(", ") || "that";
-      return { status: "not_found", summary: `I couldn't find anything about ${w} in the ${plural(files, "file")} you've let me see.`, items: [], gaps, query_words: qt };
+      if (period) return { status: "not_found", summary: note + `I couldn't find anything about ${w} in notes dated ${plabel}.`, items: [], gaps, query_words: qt };
+      return { status: "not_found", summary: note + `I couldn't find anything about ${w} in the ${plural(files, "file")} you've let me see.`, items: [], gaps, query_words: qt };
     }
     const [topS, top] = sortedScored[0];
     const coverage = sum([...query.keys()].filter((w) => top.toks.includes(w)).map((w) => ix.weight(w))) / totalW;
     const knownW = sum([...query.keys()].filter((w) => !missing.includes(w)).map((w) => ix.weight(w))) || 1;
     const knownCov = sum([...query.keys()].filter((w) => top.toks.includes(w)).map((w) => ix.weight(w))) / knownW;
     const mt = (f) => matched(query, f).map(sh);
-    if (missing.length && missingShare >= 0.3 && knownCov < 0.8) {
+    if (missing.length && (missingShare >= 0.5 || (missingShare >= 0.3 && knownCov < 0.8))) {
       return { status: "not_found",
-        summary: `I couldn't find anything about ${missing.map((w) => `“${sh(w)}”`).join(", ")} in your notes, so I can't answer that. These lines share some words with your question but don't answer it:`,
+        summary: note + `I couldn't find anything about ${missing.map((w) => `“${sh(w)}”`).join(", ")} in your notes, so I can't answer that. These lines share some words with your question but don't answer it:`,
         items: sortedScored.slice(0, 3).map(([, f]) => item(f, { why: whyText(f, mt(f)), confidence: "low" })), gaps, query_words: qt };
     }
     if (coverage < 0.34 && !(missing.length && knownCov >= 0.8)) {
-      return { status: "unsure", summary: "I'm not sure. Nothing in your notes clearly answers that. The closest lines only partly match:",
+      return { status: "unsure", summary: note + "I'm not sure. Nothing in your notes clearly answers that. The closest lines only partly match:",
         items: sortedScored.slice(0, 3).map(([, f]) => item(f, { why: whyText(f, mt(f)), confidence: "low" })), gaps, query_words: qt };
     }
     const keep = sortedScored.filter(([s]) => s >= 0.45 * topS).slice(0, 10).map(([, f]) => f);
@@ -1078,7 +1157,78 @@ month week day end anything original amount`.split(/\s+/).map(stem));
       if (c.tentative) summary += " It isn't final yet.";
     }
     if (missing.length) summary += ` (Nothing in your notes mentions ${missing.map((w) => `“${sh(w)}”`).join(", ")}.)`;
-    return { status: "found", summary, items, gaps, query_words: qt, confidence: conf };
+    if (period) summary += ` Only notes dated ${plabel}.`;
+    return { status: "found", summary: note + summary, items, gaps, query_words: qt, confidence: conf };
+  }
+
+  // ---- spelling tolerance and time windows (as in brain.py) ----
+  function editDistance(a, b, limit = 2) {
+    if (Math.abs(a.length - b.length) > limit) return limit + 1;
+    let prev2 = [], prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for (let i = 1; i <= a.length; i++) {
+      const cur = [i].concat(new Array(b.length).fill(0));
+      for (let j = 1; j <= b.length; j++) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+        if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) cur[j] = Math.min(cur[j], prev2[j - 2] + 1);
+      }
+      prev2 = prev; prev = cur;
+    }
+    return prev[prev.length - 1];
+  }
+  function closest(word, vocab, minLen = 5) {
+    if (word.length < minLen || !/^[a-z]+$/i.test(word)) return null;
+    const limit = word.length < 7 ? 1 : 2;
+    let best = null;
+    for (const [v, n] of vocab) {
+      if (!/^[a-z]+$/i.test(v) || v[0] !== word[0] || Math.abs(v.length - word.length) > limit) continue;
+      const d = editDistance(word, v, limit);
+      if (d <= limit) { const key = [d, -n, v]; if (!best || cmpKey(key, best[0]) < 0) best = [key, v]; }
+    }
+    return best ? best[1] : null;
+  }
+  const DAY_FULL = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const MONTH_FULL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const PERIOD_RX = new RegExp(`\\b(today|yesterday|this week|last week|this month|last month|(?:in the |over the )?(?:past|last) (\\d{1,3}) days|since (${WD})|in (${MON}))\\b`, "i");
+  function findPeriod(q, today) {
+    const m = q.match(PERIOD_RX);
+    if (!m) return null;
+    const p = m[1].toLowerCase();
+    let a, b, label;
+    if (p === "today") { a = b = today; label = "today"; }
+    else if (p === "yesterday") { a = b = today - 1; label = "yesterday"; }
+    else if (p === "this week") { a = today - weekday(today); b = today; label = "this week"; }
+    else if (p === "last week") { a = today - (weekday(today) + 7); b = a + 6; label = "last week"; }
+    else if (p === "this month") { const [y, mo] = ymd(today); a = dnum(y, mo, 1); b = today; label = "this month"; }
+    else if (p === "last month") { const [y, mo] = ymd(today); b = dnum(y, mo, 1) - 1; const [y2, m2] = ymd(b); a = dnum(y2, m2, 1); label = "last month"; }
+    else if (m[2]) { const n = +m[2]; a = today - n; b = today; label = `in the last ${n} days`; }
+    else if (m[3]) { const wd = WEEKDAYS[m[3].toLowerCase()]; a = today - mod(weekday(today) - wd, 7); b = today; label = `since ${DAY_FULL[weekday(a)]}`; }
+    else { const mon = MONTHS[m[4].toLowerCase()]; const [y, tm] = ymd(today); const yy = mon <= tm ? y : y - 1; a = dnum(yy, mon, 1); b = lastDay(yy, mon); label = `in ${MONTH_FULL[mon - 1]}`; }
+    return [a, b, label, [m.index, m.index + m[0].length]];
+  }
+  const KIND_WORDS = [["action", /\b(actions?|to-?dos?|tasks?)\b/i], ["risk", /\b(risks?|problems?|issues?|blockers?)\b/i],
+    ["question", /\b(open questions?|questions?)\b/i]];
+  const KIND_PLURAL = { decision: "Decisions", action: "Actions", risk: "Risks", question: "Open questions" };
+  function kindLabel(f) {
+    for (const [tg, label] of [["decision", "Decision"], ["done", "Done"], ["action", "Action"], ["risk", "Risk"], ["question", "Open question"]]) {
+      if (f.tags.has(tg)) return label;
+    }
+    return "Note";
+  }
+  function periodOverview(frags, period, plabel, context, only) {
+    const [a, b] = period;
+    const inside = sortBy(frags.filter((f) => a <= f.date && f.date <= b && !f.tags.has("link") && (only == null || f.tags.has(only))),
+      (f) => [-f.date, ![...f.tags].some((t) => t !== "tentative"), f.id]);
+    const items = inside.slice(0, 12).map((f) => item(f, { why: whyText(f), headline: `${fmtDate(f.date)} · ${kindLabel(f)}`,
+      flags: f.tags.has("tentative") ? ["not final"] : [], confidence: "high" }));
+    const guessed = [...new Set(inside.filter((f) => f.dateGuessed).map((f) => f.doc.display))].sort();
+    const gaps = askGaps(context);
+    if (guessed.length) gaps.push({ text: `No dates inside ${guessed.join(", ")}, so they're placed by when the file was last changed.`, kind: "dates" });
+    const what = only ? KIND_PLURAL[only].toLowerCase() : "anything";
+    if (!items.length) return { status: "not_found", kind: "period", items: [], gaps, summary: `I found no ${what} in your notes dated ${plabel}.` };
+    const more = inside.length > 12 ? ` Showing the newest 12 of ${inside.length}.` : "";
+    const lead = only ? `${KIND_PLURAL[only]} your notes recorded` : "Here's what your notes recorded";
+    return { status: "found", kind: "period", items, gaps, summary: `${lead} ${plabel}, newest first.${more}` };
   }
 
   // ------------------------------------------------------------------ chat
@@ -1116,10 +1266,37 @@ month week day end anything original amount`.split(/\s+/).map(stem));
     date: today, start: { date: today, h: 23, mi: 59, s: 0 }, date_label: label });
   const asAnswer = (r) => { const o = Object.assign({}, r); o.answer_kind = o.kind || "question"; delete o.kind; return Object.assign({ kind: "answer" }, o); };
 
+  function fixNames(msg, roster, docs) {
+    const vocab = new Set(tokens(docs.filter((d) => d.kind !== "calendar").flatMap((d) => d.lines).join(" ")));
+    const names = new Map([...roster.full.keys()].map((f) => [f, 1]));
+    const fixes = [];
+    const out = msg.replace(/[A-Za-z]+/g, (w) => {
+      const lw = w.toLowerCase();
+      if (lw.length < 4 || names.has(lw) || STOP.has(lw) || GENERIC.has(lw) || vocab.has(lw) || vocab.has(stem(lw))) return w;
+      const c = closest(lw, names, 4);
+      if (!c) return w;
+      fixes.push([w, roster.name(c)]);
+      return roster.name(c);
+    });
+    return [out, fixes];
+  }
+
   function chat(docs, message, today, context) {
-    const msg = (message || "").trim().slice(0, 500);
-    if (!msg) return { kind: "text", text: "Ask me anything about the notes you've allowed.", suggestions: CHAT_SUGGESTIONS };
-    const roster = buildRoster(docs), files = new Set(docs.map((d) => d.path)).size;
+    const msg0 = (message || "").trim().slice(0, 500);
+    if (!msg0) return { kind: "text", text: "Ask me anything about the notes you've allowed.", suggestions: CHAT_SUGGESTIONS };
+    const roster = buildRoster(docs);
+    const [msg, fixes] = fixNames(msg0, roster, docs);
+    const r = chatInner(docs, msg, today, context, roster);
+    if (fixes.length) {
+      const note = "I read " + fixes.map(([a, b]) => `“${a}” as ${b}`).join(", ") + ". ";
+      const key = r.kind === "answer" ? "summary" : "text";
+      r[key] = note + (r[key] || "");
+    }
+    return r;
+  }
+
+  function chatInner(docs, msg, today, context, roster) {
+    const files = new Set(docs.map((d) => d.path)).size;
     if (HELLO_RX.test(msg)) {
       return { kind: "text", suggestions: CHAT_SUGGESTIONS,
         text: `Hi! I can see ${plural(files, "file")} you've allowed. I only read them when you ask, and I keep nothing afterwards. What would you like to know?` };

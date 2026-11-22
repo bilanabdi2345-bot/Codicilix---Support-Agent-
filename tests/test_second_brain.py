@@ -22,6 +22,10 @@ TODAY = dt.date(2026, 11, 22)
 
 def load(off=()):
     files = sources.inventory([SAMPLE], {sources.norm_key(os.path.join(SAMPLE, p)) for p in off})
+    # Files with no date inside are dated by their file timestamp, and a fresh git clone stamps
+    # everything "now". Pin those dates so the tests give the same results on any day.
+    for f in files:
+        f["modified"] = "2026-11-21"
     ctx = {"switched_off": [f["display"] for f in files if f["switched_off"]],
            "unreadable": [f["display"] for f in files if not f["readable"]]}
     return sources.read_all(files), ctx
@@ -148,6 +152,157 @@ class ChatTests(unittest.TestCase):
     def test_greeting_and_help(self):
         self.assertEqual(self.chat("hi")["kind"], "text")
         self.assertEqual(self.chat("help")["kind"], "help")
+
+
+class FeatureTests(unittest.TestCase):
+    def chat(self, msg):
+        docs, ctx = load()
+        return brain.chat(docs, msg, TODAY, ctx)
+
+    def test_spreadsheet_action_list(self):
+        docs, _ = load()
+        sheet = next(d for d in docs if d.kind == "actions")
+        self.assertIn("- [ ] Send Tom the welcome pack · me · by 2026-11-25", sheet.lines)
+        b = brain.meeting_brief(docs, "tom-day1-1126@sample", TODAY, load()[1])
+        acts = next(s for s in b["sections"] if s["id"] == "actions")["items"]
+        pack = next(i for i in acts if "welcome pack" in i["text"])
+        self.assertEqual(pack["owner"], "You")
+        self.assertIn("due 25 Nov", pack["flags"])
+        self.assertEqual(pack["source"]["line"], 2)      # line 2 of the spreadsheet itself
+
+    def test_spelling_mistakes_are_forgiven(self):
+        r = self.chat("what's the budjet?")
+        self.assertTrue(r["summary"].startswith("I read “budjet” as “budget”"), r["summary"])
+        self.assertIn("£55k", r["items"][0]["text"])
+        self.assertEqual(self.chat("prepare me for my 1:1 with prya")["brief"]["meeting"]["title"], "1:1 Priya")
+        # a real word in the notes is never "corrected" into a name ("data" is not "Dana")
+        self.assertNotIn("I read", self.chat("catch me up on data residency")["text"])
+        self.assertNotIn("I read", self.chat("what is the reading on the launch?").get("summary", ""))
+
+    def test_time_questions(self):
+        r = self.chat("what happened last week?")
+        self.assertEqual(r["answer_kind"], "period")
+        self.assertTrue(r["items"])
+        for it in r["items"]:
+            self.assertTrue("2026-11-09" <= it["source"]["date"] <= "2026-11-15", it["source"]["date"])
+        r = self.chat("decisions in October")
+        self.assertTrue(r["items"] and all("Decision" in it["headline"] for it in r["items"]))
+
+    def test_mostly_unknown_question_is_refused(self):
+        r = self.chat("What is the zorblax quantum flux reading?")
+        self.assertEqual(r["status"], "not_found")
+
+
+class FakeOllama:
+    """A stand-in for Ollama on 127.0.0.1: lists one model and answers with cited test bullets."""
+    from http.server import BaseHTTPRequestHandler as _B
+
+    class Handler(_B):
+        def log_message(self, *a):
+            pass
+
+        def _send(self, obj):
+            import json
+            data = json.dumps(obj).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def do_GET(self):
+            self._send({"models": [{"name": "test-stand-in:1b"}]})
+
+        def do_POST(self):
+            import json
+            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            FakeOllama.last = body
+            self._send({"message": {"content": "- The launch moved to 15 Jan [2]\n- It was 1 Dec before [1][9]\n"
+                                               "- Something with no source"}})
+
+
+class YServerTests(unittest.TestCase):
+    """The real server over HTTP: secret key, chat, local AI write-ups and the check-up."""
+
+    @classmethod
+    def setUpClass(cls):
+        import json
+        import threading
+        from http.server import ThreadingHTTPServer
+        argv = sys.argv
+        sys.argv = ["app.py", "--token", "test-key", "--no-browser", "--today", "2026-11-22"]
+        try:
+            import app
+        finally:
+            sys.argv = argv
+        import ai
+        cls.app, cls.json = app, json
+        cls.fake = ThreadingHTTPServer(("127.0.0.1", 0), FakeOllama.Handler)
+        threading.Thread(target=cls.fake.serve_forever, daemon=True).start()
+        ai.OLLAMA = f"http://127.0.0.1:{cls.fake.server_address[1]}"
+        app.api_scope_add({"path": SAMPLE})
+        cls.srv = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+        app.SERVER["address"] = cls.srv.server_address[:2]
+        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.srv.shutdown()
+        cls.fake.shutdown()
+
+    def call(self, method, path, body=None, key="test-key", host=None):
+        import http.client
+        port = self.srv.server_address[1]
+        headers = {"Host": host or f"127.0.0.1:{port}"}
+        if key:
+            headers["X-Second-Brain-Key"] = key
+        data = None
+        if body is not None:
+            data = self.json.dumps(body).encode()
+            headers["Content-Type"] = "application/json"
+        c = http.client.HTTPConnection("127.0.0.1", port, timeout=20)
+        c.request(method, path, body=data, headers=headers)
+        r = c.getresponse()
+        out = (r.status, self.json.loads(r.read()))
+        c.close()
+        return out
+
+    def test_only_the_window_with_the_key_is_answered(self):
+        self.assertEqual(self.call("GET", "/api/state", key=None)[0], 403)
+        self.assertEqual(self.call("GET", "/api/state", key="wrong")[0], 403)
+        self.assertEqual(self.call("GET", "/api/state", host="evil.example")[0], 403)
+        status, body = self.call("GET", "/api/state")
+        self.assertEqual(status, 200)
+        self.assertTrue(body["data"]["ai"]["available"])
+
+    def test_chat_over_http_comes_with_a_receipt(self):
+        status, body = self.call("POST", "/api/chat", {"message": "when is the launch?"})
+        self.assertEqual(status, 200)
+        self.assertEqual(body["data"]["status"], "found")
+        self.assertGreater(body["receipt"]["files_read_count"], 0)
+        self.assertEqual(body["receipt"]["written"], 0)
+        self.assertEqual(body["receipt"]["outside_scope"], [])
+
+    def test_local_ai_write_up_is_cited_and_local(self):
+        items = [{"text": "Launch date 1 Dec confirmed.", "file": "a.md", "date": "27 Oct"},
+                 {"text": "agreed: move launch to 15 Jan", "file": "b.md", "date": "10 Nov"}]
+        status, body = self.call("POST", "/api/ai", {"request": "When is the launch?", "items": items})
+        d = body["data"]
+        self.assertEqual(d["model"], "test-stand-in:1b")
+        self.assertEqual(d["points"][0]["cites"], [2])
+        self.assertEqual(d["points"][1]["cites"], [1])
+        self.assertEqual(d["points"][1]["bad_cites"], [9])      # a source that doesn't exist is dropped
+        self.assertEqual(d["uncited"], 1)                      # and an unsourced point is flagged
+        sent = FakeOllama.last
+        self.assertEqual(sent["keep_alive"], 0)                # the model is told to forget straight away
+        self.assertIn("[2] (10 Nov, b.md) agreed: move launch to 15 Jan", sent["messages"][1]["content"])
+
+    def test_checkup_passes_every_check(self):
+        status, body = self.call("POST", "/api/checkup", {})
+        d = body["data"]
+        failed = [c for c in d["checks"] if c["status"] != "pass"]
+        self.assertEqual(failed, [])
+        self.assertEqual(d["passed"], d["total"])
 
 
 class ZGuardTests(unittest.TestCase):

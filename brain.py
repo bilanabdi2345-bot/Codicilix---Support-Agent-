@@ -24,7 +24,7 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 
-from sources import Doc, find_dates, fmt_date
+from sources import MONTHS, WEEKDAYS, Doc, find_dates, fmt_date
 
 # --------------------------------------------------------------------------
 # Words
@@ -226,7 +226,7 @@ class Roster:
 def build_roster(docs: list[Doc]) -> Roster:
     r = Roster()
     for d in docs:
-        for p in d.people:
+        for p in d.people + d.owners:
             r.add(p)
         for e in d.events:
             for a in e["attendees"]:
@@ -333,8 +333,11 @@ def _tag(f: Frag, d: Doc, roster: Roster) -> None:
         if reason:
             f.tags.add("action")
             f.why["action"] = reason
-    # who owns it
-    if f.tags & {"action", "done", "question"}:
+    # who owns it (a spreadsheet row says so in its own column)
+    if d.kind == "actions" and " · " in t:
+        who = t.split(" · ")[1].strip().lower()
+        f.owner = "you" if who in ("me", "i", "you") else (who.split()[0] if who.split() else None)
+    if f.owner is None and f.tags & {"action", "done", "question"}:
         for first in roster.full:
             if re.search(rf"(?:^|[\s(@]){first}\s+(?:to|will|needs to|should)\s+(?!be\b)\w+", t, re.I):
                 f.owner = first
@@ -1020,6 +1023,100 @@ _Q_WORDS = re.compile(r"\b(what|whats|when|who|whom|where|why|how|did|do|does|we
                       r"managing|owns|owner|mean|means|happened|remind|recall|again|our|my|on|with|for|of)\b", re.I)
 
 
+def _edit_distance(a: str, b: str, limit: int = 2) -> int:
+    """Damerau-Levenshtein (optimal string alignment) distance, capped at limit + 1."""
+    if abs(len(a) - len(b)) > limit:
+        return limit + 1
+    prev2: list[int] = []
+    prev = list(range(len(b) + 1))
+    for i in range(1, len(a) + 1):
+        cur = [i] + [0] * len(b)
+        for j in range(1, len(b) + 1):
+            cost = 0 if a[i - 1] == b[j - 1] else 1
+            cur[j] = min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost)
+            if i > 1 and j > 1 and a[i - 1] == b[j - 2] and a[i - 2] == b[j - 1]:
+                cur[j] = min(cur[j], prev2[j - 2] + 1)
+        prev2, prev = prev, cur
+    return prev[-1]
+
+
+def _closest(word: str, vocab: dict, min_len: int = 5) -> str | None:
+    """The word in `vocab` (word -> how common) that `word` is most likely a typo of.
+    Short words are left alone: 'read' is a word, not a typo of 'real'."""
+    if len(word) < min_len or not word.isalpha():
+        return None
+    limit = 1 if len(word) < 7 else 2
+    best = None
+    for v, n in vocab.items():
+        if not v.isalpha() or v[0] != word[0] or abs(len(v) - len(word)) > limit:
+            continue
+        d = _edit_distance(word, v, limit)
+        if d <= limit:
+            key = (d, -n, v)
+            if best is None or key < best[0]:
+                best = (key, v)
+    return best[1] if best else None
+
+
+_MONTH_ALT = "|".join(sorted(MONTHS, key=len, reverse=True))
+_WD_ALT = "|".join(sorted(WEEKDAYS, key=len, reverse=True))
+_PERIOD_RX = re.compile(rf"\b(today|yesterday|this week|last week|this month|last month|"
+                        rf"(?:in the |over the )?(?:past|last) (\d{{1,3}}) days|since ({_WD_ALT})|"
+                        rf"in ({_MONTH_ALT}))\b", re.I)
+
+
+def find_period(q: str, today: dt.date):
+    """'this week', 'last month', 'in October'... -> (start, end, label, span) or None."""
+    m = _PERIOD_RX.search(q)
+    if not m:
+        return None
+    p = m.group(1).lower()
+    one = dt.timedelta(days=1)
+    if p == "today":
+        a = b = today
+        label = "today"
+    elif p == "yesterday":
+        a = b = today - one
+        label = "yesterday"
+    elif p == "this week":
+        a, b, label = today - dt.timedelta(days=today.weekday()), today, "this week"
+    elif p == "last week":
+        a = today - dt.timedelta(days=today.weekday() + 7)
+        b, label = a + dt.timedelta(days=6), "last week"
+    elif p == "this month":
+        a, b, label = today.replace(day=1), today, "this month"
+    elif p == "last month":
+        b = today.replace(day=1) - one
+        a, label = b.replace(day=1), "last month"
+    elif m.group(2):
+        n = int(m.group(2))
+        a, b, label = today - dt.timedelta(days=n), today, f"in the last {n} days"
+    elif m.group(3):
+        wd = WEEKDAYS[m.group(3).lower()]
+        a = today - dt.timedelta(days=(today.weekday() - wd) % 7)
+        b, label = today, f"since {a.strftime('%A')}"
+    else:
+        mon = MONTHS[m.group(4).lower()]
+        y = today.year if mon <= today.month else today.year - 1
+        a = dt.date(y, mon, 1)
+        b = (dt.date(y + (mon == 12), mon % 12 + 1, 1)) - one
+        label = f"in {a.strftime('%B')}"
+    return a, b, label, m.span()
+
+
+_KIND_WORDS = [("action", r"\b(actions?|to-?dos?|tasks?)\b"), ("risk", r"\b(risks?|problems?|issues?|blockers?)\b"),
+               ("question", r"\b(open questions?|questions?)\b")]
+_KIND_PLURAL = {"decision": "Decisions", "action": "Actions", "risk": "Risks", "question": "Open questions"}
+
+
+def _kind_label(f: Frag) -> str:
+    for tag, label in (("decision", "Decision"), ("done", "Done"), ("action", "Action"), ("risk", "Risk"),
+                       ("question", "Open question")):
+        if tag in f.tags:
+            return label
+    return "Note"
+
+
 def ask(docs: list[Doc], question: str, today: dt.date, context: dict) -> dict:
     roster = build_roster(docs)
     frags = build_frags(docs, roster)
@@ -1062,21 +1159,57 @@ def ask(docs: list[Doc], question: str, today: dt.date, context: dict) -> dict:
                 "summary": "Things your notes say differently over time, newest first:" if items else
                 "I didn't find notes that contradict each other.", "items": items, "gaps": _ask_gaps(context, frags)}
 
-    intent = ("decision" if re.search(r"\b(decid\w*|decision|agree\w*|go with|choose|chose)\b", q, re.I) else
-              "when" if re.search(r"\bwhen\b|\bdate\b|\bdeadline\b", q, re.I) else
-              "amount" if re.search(r"\b(how much|budget|cost|costs|price|pricing|spend)\b|[£$€]", q, re.I) else
-              "who" if re.search(r"\bwho\b", q, re.I) else
-              "link" if re.search(r"\b(link|article|url|saved|bookmark)\b", q, re.I) else "")
-    content = _Q_WORDS.sub(" ", q)
+    # "what happened last week?" / "decisions in October"
+    period = find_period(q, today)
+    qx = q if not period else (q[:period[3][0]] + " " + q[period[3][1]:])
+    in_period = (lambda f: period[0] <= f.date <= period[1]) if period else (lambda f: True)
+    plabel = f"{period[2]} ({fmt_date(period[0])}" + (f" to {fmt_date(period[1])})" if period[1] != period[0] else ")") \
+        if period else ""
+
+    intent = ("decision" if re.search(r"\b(decid\w*|decision\w*|agree\w*|go with|choose|chose)\b", qx, re.I) else
+              "when" if re.search(r"\bwhen\b|\bdate\b|\bdeadline\b", qx, re.I) else
+              "amount" if re.search(r"\b(how much|budget|cost|costs|price|pricing|spend)\b|[£$€]", qx, re.I) else
+              "who" if re.search(r"\bwho\b", qx, re.I) else
+              "link" if re.search(r"\b(link|article|url|saved|bookmark)\b", qx, re.I) else "")
+    content = _Q_WORDS.sub(" ", qx)
     if intent == "decision":   # "did we agree on SSO" is about SSO, not about agreeing
-        content = re.sub(r"\b(decid\w*|decision|agree\w*|go with|choose|chose)\b", " ", content, flags=re.I)
+        content = re.sub(r"\b(decid\w*|decision\w*|agree\w*|go with|choose|chose)\b", " ", content, flags=re.I)
+    only = "decision" if intent == "decision" else None
+    if period:                 # "actions since Monday", "risks last week": a filter, not a search word
+        for kind, rx in _KIND_WORDS:
+            if re.search(rx, content, re.I):
+                only = only or kind
+                content = re.sub(rx, " ", content, flags=re.I)
     words = [w for w in re.findall(r"[A-Za-z0-9£$€']+", content)
              if tokens(w) and tokens(w)[0] not in GENERIC]
-    qt = [w for w in tokens(content) if w not in GENERIC] or tokens(content)
-    query = {w: 1.0 for w in qt}
+    specific = [w for w in tokens(content) if w not in GENERIC]
+
+    if period and not specific:
+        return _period_overview(frags, period, plabel, context, only=only)
+
+    qt = specific or tokens(content)
     shown = {tokens(w)[0]: w.lower().removesuffix("'s") for w in words}
+    # forgive spelling mistakes: a word that's nowhere in your notes but one letter
+    # off a word that is ("budjet" -> "budget", "prya" -> "priya")
+    query: dict[str, float] = {}
+    corrections = []
+    for w in qt:
+        c = None if ix.df.get(w) else _closest(w, ix.df)
+        if c and c not in query and c not in qt:
+            corrections.append((shown.get(w, w), c))
+            shown[c] = c
+            query[c] = 1.0
+        else:
+            query[w] = 1.0
+    qt = list(query)
+    note = ("I read " + ", ".join(f"“{a}” as “{b}”" for a, b in corrections) + ". ") \
+        if corrections else ""
+    if not intent and {"budget", "pricing"} & set(query):
+        intent = "amount"          # e.g. "what's the budjet?" once the spelling is fixed
     scored = []
     for f in frags:
+        if not in_period(f):
+            continue
         s = ix.bm25(query, f)
         if s <= 0:
             continue
@@ -1104,25 +1237,30 @@ def ask(docs: list[Doc], question: str, today: dt.date, context: dict) -> dict:
     missing = [w for w in query if not ix.df.get(w)]
     missing_share = sum(ix.weight(w) for w in missing) / total_w
     if not scored:
-        return {"status": "not_found", "summary": _not_found_text([shown.get(w, w) for w in qt], frags),
+        if period:
+            w = ", ".join(f"“{shown.get(x, x)}”" for x in qt[:4]) or "that"
+            return {"status": "not_found", "summary": note + f"I couldn't find anything about {w} in notes dated "
+                                                             f"{plabel}.", "items": [], "gaps": gaps, "query_words": qt}
+        return {"status": "not_found", "summary": note + _not_found_text([shown.get(w, w) for w in qt], frags),
                 "items": [], "gaps": gaps, "query_words": qt}
     top_s, top = scored[0]
     coverage = sum(ix.weight(w) for w in query if w in top.toks) / total_w
     known_w = sum(ix.weight(w) for w in query if w not in missing) or 1
     known_cov = sum(ix.weight(w) for w in query if w in top.toks) / known_w
-    if missing and missing_share >= 0.3 and known_cov < 0.8:
+    # most of the question isn't in your notes at all -> say so rather than answer the leftover word
+    if missing and (missing_share >= 0.5 or (missing_share >= 0.3 and known_cov < 0.8)):
         near = [item(f, why=why_text(f, [shown.get(w, w) for w in _matched(query, f)]), confidence="low")
                 for _, f in scored[:3]]
         miss = ", ".join(f"“{shown.get(w, w)}”" for w in missing)
-        return {"status": "not_found", "summary": f"I couldn't find anything about {miss} in your notes, so I "
-                                                  f"can't answer that. These lines share some words with your "
-                                                  f"question but don't answer it:",
+        return {"status": "not_found", "summary": note + f"I couldn't find anything about {miss} in your notes, "
+                                                         f"so I can't answer that. These lines share some words "
+                                                         f"with your question but don't answer it:",
                 "items": near, "gaps": gaps, "query_words": qt}
     if coverage < 0.34 and not (missing and known_cov >= 0.8):
         near = [item(f, why=why_text(f, [shown.get(w, w) for w in _matched(query, f)]), confidence="low")
                 for _, f in scored[:3]]
-        return {"status": "unsure", "summary": "I'm not sure. Nothing in your notes clearly answers that. "
-                                               "The closest lines only partly match:",
+        return {"status": "unsure", "summary": note + "I'm not sure. Nothing in your notes clearly answers that. "
+                                                      "The closest lines only partly match:",
                 "items": near, "gaps": gaps, "query_words": qt}
     keep = [f for s, f in scored if s >= 0.45 * top_s][:10]
     # group into threads so the history reads in order
@@ -1182,8 +1320,33 @@ def ask(docs: list[Doc], question: str, today: dt.date, context: dict) -> dict:
             summary += " It isn't final yet."
     if missing:
         summary += f" (Nothing in your notes mentions {', '.join(chr(8220) + shown.get(w, w) + chr(8221) for w in missing)}.)"
-    return {"status": "found", "summary": summary, "items": items, "gaps": gaps, "query_words": qt,
+    if period:
+        summary += f" Only notes dated {plabel}."
+    return {"status": "found", "summary": note + summary, "items": items, "gaps": gaps, "query_words": qt,
             "confidence": conf}
+
+
+def _period_overview(frags: list[Frag], period, plabel: str, context: dict, only: str | None = None) -> dict:
+    """'What happened last week?': everything your notes recorded in that window, newest first.
+    'Decisions in October': just the decisions."""
+    a, b = period[0], period[1]
+    inside = [f for f in frags if a <= f.date <= b and "link" not in f.tags and (only is None or only in f.tags)]
+    inside.sort(key=lambda f: (-f.date.toordinal(), not (f.tags - {"tentative"}), f.id))
+    items = [item(f, why=why_text(f), headline=f"{fmt_date(f.date)} · {_kind_label(f)}",
+                  flags=(["not final"] if "tentative" in f.tags else []), confidence="high") for f in inside[:12]]
+    guessed = sorted({f.doc.display for f in inside if f.date_guessed})
+    gaps = _ask_gaps(context, frags)
+    if guessed:
+        gaps.append({"text": f"No dates inside {', '.join(guessed)}, so they're placed by when the file was last "
+                             f"changed.", "kind": "dates"})
+    what = _KIND_PLURAL[only].lower() if only else "anything"
+    if not items:
+        return {"status": "not_found", "kind": "period", "items": [], "gaps": gaps,
+                "summary": f"I found no {what} in your notes dated {plabel}."}
+    more = f" Showing the newest 12 of {len(inside)}." if len(inside) > 12 else ""
+    lead = f"{_KIND_PLURAL[only]} your notes recorded" if only else "Here's what your notes recorded"
+    return {"status": "found", "kind": "period", "items": items, "gaps": gaps,
+            "summary": f"{lead} {plabel}, newest first.{more}"}
 
 
 def _not_found_text(words, frags) -> str:
@@ -1263,6 +1426,27 @@ def _synthetic(title: str, attendees: list[str], today: dt.date, label: str) -> 
             "date": today, "start": start, "date_label": label}
 
 
+def _fix_names(msg: str, roster: Roster, docs: list[Doc]) -> tuple[str, list[tuple[str, str]]]:
+    """'prepare me for my 1:1 with prya' -> 'Priya'. Only words that appear nowhere in
+    your notes are corrected, so real words ('data') are never turned into names ('Dana')."""
+    vocab = set(tokens(" ".join(ln for d in docs for ln in d.lines if d.kind != "calendar")))
+    names = {f: 1 for f in roster.full}
+    fixes: list[tuple[str, str]] = []
+
+    def rep(m):
+        w = m.group(0)
+        lw = w.lower()
+        if len(lw) < 4 or lw in names or lw in STOP or lw in GENERIC or lw in vocab or stem(lw) in vocab:
+            return w
+        c = _closest(lw, names, 4)
+        if not c:
+            return w
+        fixes.append((w, roster.name(c)))
+        return roster.name(c)
+
+    return re.sub(r"[A-Za-z]+", rep, msg), fixes
+
+
 def chat(docs: list[Doc], message: str, today: dt.date, context: dict) -> dict:
     """Route one chat message to the right kind of help. Stateless: nothing about the
     conversation is kept here; the browser holds the conversation, in page memory only."""
@@ -1271,6 +1455,16 @@ def chat(docs: list[Doc], message: str, today: dt.date, context: dict) -> dict:
         return {"kind": "text", "text": "Ask me anything about the notes you've allowed.",
                 "suggestions": CHAT_SUGGESTIONS}
     roster = build_roster(docs)
+    msg, fixes = _fix_names(msg, roster, docs)
+    r = _chat(docs, msg, today, context, roster)
+    if fixes:
+        note = "I read " + ", ".join(f"“{a}” as {b}" for a, b in fixes) + ". "
+        key = "summary" if r.get("kind") == "answer" else "text"
+        r[key] = note + (r.get(key) or "")
+    return r
+
+
+def _chat(docs: list[Doc], msg: str, today: dt.date, context: dict, roster: Roster) -> dict:
     files = len({d.path for d in docs})
     if _HELLO_RX.match(msg):
         return {"kind": "text", "suggestions": CHAT_SUGGESTIONS,

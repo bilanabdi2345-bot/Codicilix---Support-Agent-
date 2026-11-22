@@ -31,16 +31,23 @@
   const receipt = (read) => ({ files_read: [...new Set(read)].sort(), files_read_count: new Set(read).size,
     outside_scope: [], blocked: [], network: [], written: 0 });
 
-  // Network requests this page itself has made since it loaded (should be none). The
-  // leak test's own attempts are left out: they are reported separately, as blocked.
+  // Network requests, split in two: what loaded while the page was opening (the page itself,
+  // or the site hosting it), and anything after that, while you use it (should be none).
+  // The leak test's own attempts are left out: they are reported separately, as blocked.
   const LEAK_TEST_MARK = "second-brain-leak-test";
-  function networkSinceLoad() {
+  let readyAt = null;
+  const markReady = () => setTimeout(() => { readyAt = performance.now(); }, 3000);
+  if (document.readyState === "complete") markReady(); else window.addEventListener("load", markReady);
+  function networkRequests() {
     try {
-      return performance.getEntriesByType("resource")
-        .filter((e) => e.startTime >= loadedAt && /^https?:/i.test(e.name) && !e.name.includes(LEAK_TEST_MARK))
-        .map((e) => e.name);
-    } catch (e) { return []; }
+      const all = performance.getEntriesByType("resource")
+        .filter((e) => /^https?:/i.test(e.name) && !e.name.includes(LEAK_TEST_MARK));
+      const cut = readyAt === null ? Infinity : readyAt;
+      return { loading: all.filter((e) => e.startTime < cut).map((e) => e.name),
+        using: all.filter((e) => e.startTime >= cut).map((e) => e.name) };
+    } catch (e) { return { loading: [], using: [] }; }
   }
+  const hostOf = (u) => { try { return new URL(u).host; } catch (e) { return u; } };
 
   const routes = {
     "GET /api/state": () => {
@@ -88,10 +95,12 @@
       return { file: f.display, path: f.path, path_display: `${ROOT}/${f.display}`, line: n, total: lines.length, lines: out };
     },
     "GET /api/ledger": () => {
-      const net = networkSinceLoad();
+      const net = networkRequests();
       return { demo: true, files_read: readCounts.size, reads_total: [...readCounts.values()].reduce((a, b) => a + b, 0),
         reads_outside_scope: 0, reads_switched_off: 0, writes_blocked: 0, net_blocked: 0, exec_blocked: 0,
-        net_loopback: 0, test_blocks: 0, network_requests: net.length, network_list: net.slice(-10), events: [], pid: null };
+        net_loopback: 0, test_blocks: 0, network_requests: net.using.length, network_list: net.using.slice(-10),
+        load_requests: net.loading.length, load_hosts: [...new Set(net.loading.map(hostOf))], ready: readyAt !== null,
+        events: [], pid: null };
     },
     "POST /api/leaktest": async () => ({ results: await browserLeakTest() }),
     "POST /api/forget": () => { off.clear(); readCounts.clear(); return { ok: true }; },

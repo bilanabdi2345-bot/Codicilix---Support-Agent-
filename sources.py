@@ -15,6 +15,7 @@ import re
 from dataclasses import dataclass, field
 
 TEXT_EXT = {".md", ".markdown", ".txt", ".text", ".org"}
+CSV_EXT = {".csv"}
 CAL_EXT = {".ics"}
 LINK_EXT = {".url", ".webloc"}
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".gif", ".heic", ".bmp", ".webp", ".tif", ".tiff"}
@@ -23,7 +24,7 @@ SKIP_DIRS = {"__pycache__", "node_modules", ".git", ".venv", "venv"}
 
 KIND_LABEL = {
     "note": "Note", "calendar": "Calendar", "link": "Saved link", "links": "Saved links",
-    "reminders": "Reminders", "draft": "Draft", "screenshot": "Screenshot",
+    "reminders": "Reminders", "draft": "Draft", "screenshot": "Screenshot", "actions": "Action list",
 }
 
 
@@ -150,6 +151,7 @@ class Doc:
     people: list[str] = field(default_factory=list)   # names from Attendees:/With: lines
     events: list[dict] = field(default_factory=list)  # calendar only
     url: str | None = None                            # .url files
+    owners: list[str] = field(default_factory=list)   # action lists: who owns each row (not who the file is about)
 
 
 def kind_of(path: str) -> str | None:
@@ -158,6 +160,8 @@ def kind_of(path: str) -> str | None:
     parts = [p.lower() for p in os.path.normpath(path).split(os.sep)[:-1]]
     if ext in CAL_EXT:
         return "calendar"
+    if ext in CSV_EXT:
+        return "actions"
     if ext in LINK_EXT:
         return "link"
     if ext in IMAGE_EXT:
@@ -232,11 +236,59 @@ def _split_names(s: str) -> list[str]:
     return names
 
 
+_CSV_COLS = {
+    "action": ("action", "task", "todo", "to do", "item", "what", "description"),
+    "owner": ("owner", "who", "assignee", "assigned to", "person", "lead"),
+    "due": ("due", "due date", "deadline", "by", "date", "when"),
+    "status": ("status", "done", "state", "complete", "completed"),
+}
+_DONE_WORDS = {"done", "complete", "completed", "closed", "finished", "yes", "y", "true", "x", "✅"}
+
+
+def csv_rows_to_lines(text: str) -> tuple[list[str], list[str]]:
+    """Turn a spreadsheet action list into note-style lines the tagger understands:
+    '- [ ] Dana to send the cost sheet by 2026-11-13'. Returns (lines, owners)."""
+    import csv
+    import io
+    rows = list(csv.reader(io.StringIO(text)))
+    if not rows:
+        return [], []
+    header = [c.strip().lower() for c in rows[0]]
+    col = {}
+    for key, names in _CSV_COLS.items():
+        for i, h in enumerate(header):
+            if h in names and i not in col.values():
+                col[key] = i
+                break
+    has_header = "action" in col
+    body = rows[1:] if has_header else rows
+    # one output line per file line, so "line 3" still means line 3 of the spreadsheet
+    lines, owners = (["# " + ", ".join(rows[0])] if has_header else []), []
+    for r in body:
+        cell = lambda k: (r[col[k]].strip() if k in col and col[k] < len(r) else "")  # noqa: E731
+        action = cell("action") if has_header else " ".join(c.strip() for c in r if c.strip())
+        if not action:
+            lines.append("")
+            continue
+        owner, due, status = cell("owner"), cell("due"), cell("status").lower()
+        who = "me" if owner.lower() in ("", "me", "i", "you", "myself") else owner
+        if who != "me":
+            owners.append(owner)
+        # shown almost exactly as the row reads: "Send Tom the welcome pack · me · by 2026-11-25"
+        line = f"{action} · {who}" + (f" · by {due}" if due else "")
+        lines.append(f"- [{'x' if status in _DONE_WORDS else ' '}] {line}")
+    return lines, owners
+
+
 def read_doc(f: dict) -> Doc | None:
     path, kind = f["path"], f["kind"]
     mtime = dt.date.fromisoformat(f["modified"])
     if kind == "calendar":
         return _read_ics(f, mtime)
+    if kind == "actions":
+        lines, owners = csv_rows_to_lines(_read_text(path))
+        title = os.path.splitext(os.path.basename(path))[0]
+        return Doc(path, f["display"], kind, title, mtime, "file time (guessed)", lines=lines, owners=owners)
     if kind == "link":
         text = _read_text(path)
         m = re.search(r"^\s*URL\s*=\s*(\S+)", text, re.M | re.I) or re.search(r"https?://\S+", text)

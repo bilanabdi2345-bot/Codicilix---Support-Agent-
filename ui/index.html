@@ -18,6 +18,25 @@
   <button class="trust-pill" id="trustPill" title="See the proof">
     <span class="dot"></span><span id="trustText">On this device · guard on</span>
   </button>
+  <div class="display-wrap">
+    <button class="ghost" id="displayBtn" aria-expanded="false" aria-controls="displayPanel">Display</button>
+    <div class="display-panel hidden" id="displayPanel" role="group" aria-label="Display options">
+      <div class="dp-row">
+        <span class="dp-label">Text size</span>
+        <div class="seg" id="sizeSeg">
+          <button data-size="0.9">A−</button><button data-size="1" class="on">A</button><button data-size="1.15">A+</button><button data-size="1.3">A++</button>
+        </div>
+      </div>
+      <div class="dp-row">
+        <span class="dp-label">Theme</span>
+        <div class="seg" id="themeSeg">
+          <button data-theme="" class="on">Auto</button><button data-theme="light">Light</button><button data-theme="dark">Dark</button>
+        </div>
+      </div>
+      <label class="dp-row dp-check"><input type="checkbox" id="easyRead"> Easy-read: more spacing, plainer letters (helps with dyslexia)</label>
+      <div class="dp-note">Only changes how this window looks. Nothing is saved.</div>
+    </div>
+  </div>
   <button class="ghost" id="endSession" title="Forget the allowed folders and the ledger">End session &amp; forget</button>
 </header>
 
