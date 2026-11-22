@@ -1,224 +1,214 @@
 # Codicilix
 
-A private second brain for a manager's scattered notes.
-It runs only on your laptop. Nothing it reads ever leaves the laptop.
-It keeps no copy of your notes.
+**A private assistant for a manager's messy notes.**
 
-Built for the Pfizer AI Studio and Newpage hackathon, University of Bristol, November 2026,
-by **Bilan Salim** and **David**.
+Codicilix reads your notes on your own laptop and answers questions about them.
+It shows where every answer came from. Nothing it reads ever leaves the laptop,
+and it keeps no copy of your notes.
 
-## One team, the best of two versions
+Made by **Bilan Salim** and **David** for the Pfizer OSS AI Studio × Newpage
+AI Innovation Challenge, University of Bristol, November 2026.
 
-We each built a version, then combined the best of both into Codicilix.
+---
 
-- **From Bilan's version:** reading handwriting, photos and screenshots on the Mac; the photo
-  viewer that highlights matching words; Word, Excel and PDF
-  files with their comments, tracked changes and sticky notes; the shield that blocks hidden
-  instructions; "Did you mean one of these?"; themes; the app window; the model picker.
-- **From David's version:** "What has changed?" found by code; "What do I owe people?"; the
-  decision log (every decision marked still stands, changed since, or not final); private notes
-  that stay closed until switched on; answers that still work when the AI isn't running.
+## Why we built it
 
-David's original version, with its browser demo and Windows support, is at
-[github.com/davidxu16/ai-assistant](https://github.com/davidxu16/ai-assistant).
+Managers write notes everywhere: typed notes, notebook pages, photos of whiteboards,
+comments in Word files, sticky notes on PDFs, action lists and the calendar.
+Before a meeting, it's hard to remember what changed, what you promised,
+and which note is out of date.
 
-## Five pages
+Our example manager is **Tommy**. It's his first day back after the holidays.
+Tomorrow is his first Pfizer × Newpage meeting of the year, and his notes from
+before the break are scattered everywhere. He clicks **Prepare me**, and Codicilix
+pulls together what he needs, with a link to the note behind every point.
 
-- **Ask**: a chat about your notes, with quick asks down the side and your next meeting ready to prepare for.
-- **Meetings**: past and upcoming meetings from your calendar, each linked to the notes written that day. **Prepare me** for what's coming, **Recap** for what's done.
-- **Photo viewer**: any answer that used a photo has a 🔍 button. It shows the original picture, so you can read your own handwriting yourself, and every word the Mac recognised can be selected and copied straight off the photo, like Google Lens. Words that match your question are highlighted in yellow, even when the handwriting was read slightly wrong.
-- **Word, Excel and PDF files**, including what people wrote on them: comments in the margin, tracked changes (who crossed out "12 Jan" and wrote "26 Jan"), cell comments in Excel, and sticky notes, highlights and handwriting on PDFs. Read in memory; nothing to install, nothing saved, and macros are never run.
-- **What has changed?** Plain code compares your notes and finds dates and amounts that moved, like the pilot going from 12 to 26 January, and warns you which files still say the old thing. A green box shows it next to any answer it affects. (From David's version.)
-- **Decision log.** Ask "What have we decided?": every decision, newest first, marked ✅ still stands, 🔁 changed since (with the note that changed it) or ⏳ not final. (From David's version.)
-- **Private notes stay closed.** Files or folders named "private" or "confidential" aren't opened until you switch private notes on, and answers say "1 private note not read". (From David's version.)
-- **What do I owe people?** Your open actions and the "I'll…" / "me:" lines from your notes, overdue first, all quoted. (From David's version.)
-- **Works even without the AI.** If Ollama isn't running, you still get the best matching lines, quoted exactly with their sources. (From David's version.)
-- **The shield**: if a file hides instructions aimed at the AI (white text, a hidden sheet, invisible characters, a sneaky comment), code finds them and the AI never sees them. You get a yellow **Blocked to keep your notes safe** box saying what was blocked and why, and you can read it yourself.
-- **"Did you mean one of these?"**: when Codicilix isn't sure, it shows the photos and screenshots from your folders that look closest. You look, and if one is right, click **Yes, use this** and it answers again reading that photo first.
-- **Folders & access**: switch folders on or off, and choose which kinds of things may be read: notes, action lists, calendars, saved links, and screenshots & photos.
-- **Check-up**: one button tests every promise. Add a monthly reminder to your calendar.
-- **Appearance & themes**: a theme gallery (Paper, Midnight, Forest, Sunset, High contrast, Terminal), a theme maker, theme import and download, text size, and an easy-read mode with extra spacing that helps with dyslexia.
+---
 
-## On Windows
+## What it can do
 
-Codicilix is plain Python, so it runs on Windows too.
+**Get ready for a meeting**
+- **Prepare me** builds a short brief for your next meeting: what's new since last time,
+  what you wrote last time, open actions, and questions to ask.
+- **What has changed?** finds dates and amounts that moved between notes, and tells you
+  which files still say the old thing.
+- **Decision log** lists every decision, and marks whether it still stands or has changed.
+- **What do I owe people?** lists your open promises, overdue ones first.
 
-1. Install Python 3 from python.org (tick **Add python.exe to PATH**), and Ollama from ollama.com.
-2. Download this repo (green **Code** button, then **Download ZIP**) and unzip it.
-3. Double-click `start-windows.bat`. Codicilix opens in your browser.
+**Ask questions in plain English**
+- Answers read like a normal chat, with a small number after each fact showing its source.
+- Each answer says how sure it is (**high**, **medium** or **low**) and why.
+- If your notes don't answer the question, it says so instead of guessing.
+- Small spelling mistakes are fine ("Megn" still finds Megan).
 
-Photos and screenshots are read by Windows' own built-in text reader, on the laptop, like
-David's version did. Nothing to install.
+**Read messy notes**
+- Handwriting, photos and screenshots, read by the laptop's own text reader.
+- A photo viewer that highlights the matching words, so you can check the original yourself.
+- Word, Excel and PDF files, including comments, tracked changes, sticky notes and highlights.
+- Emails, Teams exports, calendars, action lists and saved links.
 
-A few things are simpler on Windows than on a Mac:
+**Stay in control**
+- Switch folders and types of file on or off. Off means never opened.
+- Notes named "private" or "confidential" stay closed until you allow them.
+- **Forget this session** wipes everything Codicilix held in memory.
+- **Check-up** tests every privacy promise with one button.
+- Themes, bigger text, and an easy-read mode with extra spacing.
 
-- **Scanned PDFs** are read by the Mac. On Windows, PDFs with real text still work.
-- **The folder picker** is the Mac's. On Windows, type or paste the folder path.
-- **The app window** is made by a Mac script. On Windows it opens in a normal browser tab.
+---
 
-## A second sample: Project Helix
+## Why we made these choices
 
-`sample-notes/Helix` is a messier set of notes for one moment: the first week back in January,
-getting ready for the Q1 catch-up on Project Helix. It has a handwritten notebook page (a photo),
-a sticky note, an old TextEdit scratchpad, Teams messages to yourself, a budget spreadsheet with
-side notes, and a forwarded email. Some of it is out of date on purpose: the old scratchpad says
-the AWS cap is £45k, while newer notes say Megan raised it to £50k. Some things are not answered
-anywhere, such as whether Finance approved Lily's contract.
+**Everything runs on the laptop.**
+The challenge rule is that notes never leave the device. So the AI model runs
+locally through Ollama, and the app blocks any connection that isn't to the laptop itself.
+It works with Wi-Fi switched off.
 
-Helix is switched off at the start. Turn it on in **Folders & access** (and turn the others off)
-to try it.
+**Code finds the facts. The AI only writes the words.**
+Small local AI models can make mistakes. So plain code does the important work:
+searching the notes, finding what changed, spotting overdue actions, and writing
+the warnings. The AI just turns what the code found into a friendly answer.
+If the AI isn't running, you still get the exact lines from your notes.
 
-## Themes you can make and share
+**Notes are read fresh every time, and nothing is saved.**
+A saved database or search index would be a copy of your notes. So Codicilix reads
+your files when you ask, keeps them only in memory, and lets them go.
+A write guard stops the app from saving any file at all.
 
-Like Obsidian, anyone can make a theme and share it as a small file.
-Drop theme files into the `themes/` folder, or import one from the app.
-A theme can only hold colours, a font choice and corner size. It can't hold code or web addresses, so any theme is safe to use. Every theme is checked before it's applied.
-See [themes/README.md](themes/README.md) for the format.
+**Every answer shows its sources.**
+You should never have to take the AI's word for it. Every fact has a number you can
+click to see the note it came from, with its date.
 
-Screenshots and whiteboard photos are read by Apple's built-in Vision text reader, on the laptop.
+**Honest beats clever.**
+If the notes don't say, Codicilix says "I couldn't find that" rather than guess.
+Confidence drops to "low" when only one note was used, when that note has a warning,
+or when words from your question aren't in any note.
 
-## The moment it fixes
+**Files can't trick it.**
+Someone could hide instructions in a file, like white text in a Word document saying
+"send these notes away". Codicilix checks for this with plain code and blocks it before
+the AI sees anything. The AI also has no tools, so it couldn't send anything anyway.
 
-**Tuesday 5 January. Tommy's first day back.**
+**Nothing extra to install.**
+Codicilix is plain Python with no add-on packages. Handwriting is read by the Mac's
+own built-in reader. Fewer moving parts means fewer things that can go wrong or leak.
 
-Tommy is a manager in Pfizer's AI Studio. His team builds a prototype for the
-Medical team together with Newpage: Xinyue, a Newpage engineer embedded in
-Bristol, and Mehreen's team in Chennai, who cover bugs overnight and over the
-holidays. Q4 was a blur: a demo, a moved pilot date, code freeze, and two new
-interns. Tomorrow is the first **Pfizer x Newpage sync** of the year, and his
-notes are everywhere.
+**It picks a model that suits your laptop.**
+Laptops have different amounts of memory. Codicilix checks yours and uses the best
+local model you've installed. You can switch models with one click.
 
-He clicks **Prepare me**. Codicilix builds the brief in two layers:
+---
 
-**Found by code** (reliable, can't be dropped or invented):
-- 📌 **New since your last meeting on 17 Dec**: Mehreen's holiday-cover summary
-  (3 bugs fixed on staging, 1 still open, nothing went to production)
-- **Last time**: his own notes from the 17 Dec sync
-- **Open actions** for Newpage, correctly marked overdue or not
+## How you can check it's private
 
-**Written by the local AI** (the judgement):
-- **What's new**: the most important things, in 2-3 points
-- **Ask about**: questions for the sync, like when the PDF fix lands, and
-  whether Chennai can have the eval tests
-
-A second example is in **Meetings**: the intern check-in with Bilan and David,
-where it suggests technical questions to check what Megan's training taught them.
-
-Every point links to the note it came from. Handwriting the reader couldn't
-make out is marked *unclear* rather than guessed. Spelling mistakes are forgiven
-("Megn" → Megan), and when something isn't in the notes it says so.
-
-| | |
+| Promise | How to check it yourself |
 |---|---|
-| ![Meetings](docs/screenshots/meetings.png) | ![Check-up](docs/screenshots/checkup.png) |
-| ![Folders & access](docs/screenshots/folders.png) | ![Themes](docs/screenshots/themes.png) |
-
-*Screenshots taken with the made-up sample notes in this repo.*
-
-## How it keeps your notes yours
-
-| Promise | How it's done | How you can check |
-|---|---|---|
-| Nothing leaves the laptop | The AI model (Qwen3, Gemma 4 or Llama 3.2, whichever you install) runs locally with Ollama, which uses Apple's MLX on Macs. A network guard inside the app blocks every connection that isn't to this laptop, including DNS lookups. | Click **Try to break the rule**: the app tries to reach the internet and is blocked. Click **Ask my Mac what's connected**: macOS lists every open connection. Or turn Wi-Fi off; it still works. |
-| No copies | No database, no search index, no log file, nothing written to disk. Notes are read fresh for each question. Text read from photos and documents is held in memory only while the app is open, so each is read once, and **Forget this session** wipes it. A write guard blocks the app from saving any file. The model is unloaded after every answer. | The trust panel shows "saved 0 files". **Try to break the rule** also tries to save a copy and is blocked. |
-| Your notes stay as they were | Files are only ever opened read-only. | A fingerprint of all notes is taken at start and re-checked live. |
-| You choose what it sees | Notes are split into compartments (Team, Projects, Personal). Switched off means never opened. | Switch Personal off and ask about it: the answer says it didn't look there, and the file list proves it. |
-| Honest when unsure | If nothing matches, the AI isn't even asked; you get "I couldn't find that". Warnings for overdue, unfinished, old and private notes come from code, not the AI. | Ask about something that isn't there, e.g. "the budget for next summer's interns". |
-| Safe even next to other programs | A new secret key every launch, only given to the app window. Other programs on the laptop (even malware) and other websites are refused. The AI has no tools, so a note with hidden instructions can't make it send anything. | Open http://127.0.0.1:8765 in a new tab without the key: it's refused. |
-| Hidden instructions can't steer it | The shield (plain code, so it can't be talked round) checks every note, comment, hidden text and invisible character for text aimed at the AI, and blocks it before the AI sees anything. | Ask "What feedback did we get on the prototype?": the feedback form's hidden white text is blocked. The Check-up also hides four tricks in test notes and shows they were caught. |
-| Explains itself | Every answer lists the files read, the files used, dates and ages, and a confidence level with the reason. | Click any numbered source chip. |
+| Nothing leaves the laptop | Turn Wi-Fi off. It still works. Or click **Try to break the rule** and watch the app block itself. |
+| No copies are kept | The trust panel shows "saved 0 files". |
+| Your notes aren't changed | A fingerprint of your notes is checked while the app runs. |
+| You choose what it reads | Switch a folder off, then ask about it. The answer says it didn't look there. |
+| Hidden instructions are blocked | Ask "What feedback did we get on the prototype?" and see the trap file get blocked. |
 
 More detail: [docs/how-it-keeps-notes-yours.md](docs/how-it-keeps-notes-yours.md)
 
-## Set it up (Mac, about 10 minutes, needs internet once)
+---
 
-1. Install **Ollama** from ollama.com/download and open it.
-2. In Terminal, download an AI model. Pick by your Mac's memory (Apple menu → About This Mac):
+## Get started on a Mac
+
+You need internet once, for about 10 minutes. After that it works offline.
+
+1. Install **Ollama** from [ollama.com](https://ollama.com/download) and open it.
+2. Open **Terminal** and download a model. Pick one for your Mac's memory
+   (Apple menu → About This Mac):
    ```sh
-   ollama pull qwen3:4b      # 8 GB Mac: fast and accurate
-   ollama pull qwen3:8b      # 16 GB or more: best answers
-   ollama pull llama3.2:3b   # the small model the demo was first built with
+   ollama pull llama3.2:3b   # small and fast, works on any Mac
+   ollama pull qwen3:8b      # better answers, for Macs with 16 GB or more
    ```
-   Codicilix picks the best one you've installed (`"model": "auto"` in `config.json`). Click the
-   **AI: … ▾** chip at the top to compare models. Newer models like Qwen3 can "think out loud";
-   Codicilix switches that off, because the code has already found the right notes.
-3. Get this project and make the app:
+3. Download Codicilix and make the app:
    ```sh
    git clone https://github.com/bilanabdi2345-bot/Codicilix---Support-Agent-.git Codicilix
    cd Codicilix
    ./scripts/make-mac-app.sh
    ```
-4. In Applications, right-click **Codicilix** and choose **Open** (first time only).
+4. In **Applications**, right-click **Codicilix** and choose **Open** (first time only).
 
-You can now turn Wi-Fi off. It keeps working.
+To update later, double-click **Update Codicilix** in Applications.
+It runs all the tests first, and stops if anything fails.
 
-**Updating:** double-click **Update Codicilix** in Applications. It takes the newest
-`codicilix*.zip` from Downloads (or the latest from GitHub), runs the tests, pushes to
-GitHub, and rebuilds and reopens the app. If any test fails, it stops and changes nothing on GitHub.
+**On Windows:** install Python and Ollama, download this repo, and double-click
+`start-windows.bat`. It opens in your browser. Photos are read by Windows' own text reader.
 
-**Without the app icon:** run `python3 -B -m secondbrain` in the project folder.
-It opens http://127.0.0.1:8765 in your browser.
+---
 
-## Use your own notes
+## Using your own notes
 
-Codicilix starts in **Demo mode** (the sample notes, with "today" set to 5 Jan 2027).
-To use it for real, go to **Folders & access** and switch **Demo mode** off: the sample
-folders switch off and the real date is used. Switch it back on any time for a demo.
+Codicilix starts in **Demo mode**, with made-up notes and "today" set to 5 January 2027.
 
-Go to **Folders & access** and click **Choose a folder…** or **Choose files…**.
-Your Mac's normal picker opens. Pick what you want, and it's added and switched on.
-Codicilix remembers where your notes are (never what's in them), so they're still
-there next time. **Remove** stops using them; your files stay exactly where they are.
+To use your own notes:
+1. Go to **Folders & access** and switch **Demo mode** off.
+2. Click **Choose a folder…** or **Choose files…**, and pick your notes.
 
-It reads `.md`, `.txt`, `.rtf`, `.csv` action lists, saved emails (`.eml`), chat exports such as Teams messages (`.json`), `.ics` calendar files, saved links (`.webloc`, `.url`), Word, Excel and PDF files (with their comments and markings), and screenshots and photos (`.png`, `.jpg`, `.heic`).
+Codicilix remembers where your notes are, but never what's in them.
+**Remove** stops using a folder. Your files always stay exactly where they are.
 
-## Sample notes
+---
 
-`sample-notes/` is a made-up manager's notes, written for this demo. The story
-is set in Pfizer's AI Studio working alongside Newpage, but every person, project
-and detail is invented (apart from the two interns, who are the team that built
-this). No real company information is used.
+## The sample notes
 
-- **Tommy**: AI Studio manager. **Megan**: senior developer who trains the interns.
-- **Bilan** and **David**: AI Application Developer interns.
-- **Xinyue**: Newpage Forward Deployed Engineer, Bristol. **Mehreen**: Newpage lead, Chennai.
-- **Sophie**: Medical team lead, who asked for the prototype.
+Everything in `sample-notes/` is made up for the demo. No real company information is used.
 
-The notes are messy on purpose: a pilot date that moved from 12 to 26 January,
-an unfinished handover draft that still says 12 January, an overdue action,
-scraps with no dates, a private folder, and photos of real handwritten notes.
-There's also a Word pilot plan with margin comments and a tracked change, an
-Excel intern plan where Xinyue asks for an extra day in a cell comment, a PDF
-with Sophie's sticky notes and highlight, and one **trap**: a "feedback form"
-with white, invisible text telling the AI to send the notes away. They're made
-by `scripts/make-sample-documents.py`, so you can see exactly what's in them.
-The app treats **5 January 2027** as "today" (`demo_today` in `config.json`).
+**The main story** is Tommy's team in Pfizer's AI Studio, working with Newpage.
+The people are Tommy (the manager), Megan (who trains the interns), Bilan and David
+(the interns), Xinyue and Mehreen (from Newpage), and Sophie (from the Medical team).
 
-## Run the tests
+The notes are messy on purpose. The pilot date moved from 12 to 26 January, but an
+unfinished draft still says 12 January. There's an overdue action, scraps with no
+dates, a private folder, handwritten pages, a Word file with comments, a spreadsheet,
+a marked-up PDF, and one trap file with hidden instructions.
 
+**Project Helix** is a second, even messier set of notes. Switch it on in
+**Folders & access** to try it.
+
+---
+
+## For developers
+
+Run the tests (88 of them, using a fake AI model so they run anywhere):
 ```sh
 python3 -B -m unittest discover tests
 ```
 
-88 tests. They use a fake AI model, so they run anywhere.
-
-## Project layout
-
+How the code is organised:
 ```
 secondbrain/
-  guards.py     the network guard and the write guard
-  notes.py      reads notes fresh, finds dates, flags problems
-  search.py     finds matching notes for each question (no saved index)
-  brain.py      builds the answer with the local AI model, explains it
-  trust.py      the checks behind the trust panel
-  checkup.py    the full check-up
-  ocr.py        reads text in screenshots and photos, on the laptop
-  themes.py     checks theme files so they can only change looks
-  server.py     the local web server (127.0.0.1 only)
-  static/       the app window
-sample-notes/   made-up notes for the demo
-themes/         theme files (add your own here)
-scripts/        Mac app maker, screenshot reader (ocr.swift), stop script
-tests/          automatic tests
-docs/           design notes, demo script
+  guards.py    blocks internet connections and saving files
+  notes.py     reads notes, finds dates, flags problems
+  docs.py      reads Word, Excel and PDF files
+  search.py    finds the notes that match a question
+  changes.py   finds what changed, decisions and promises
+  shield.py    blocks hidden instructions in files
+  brain.py     builds the answer and explains it
+  models.py    picks and talks to the local AI model
+  server.py    the local web server (this laptop only)
+  static/      the app window
+sample-notes/  made-up notes for the demo
+themes/        colour themes (add your own)
+scripts/       Mac app maker, updater and text readers
+tests/         automatic tests
+docs/          design notes and the demo script
 ```
+
+Themes are small files that can only change colours, font and corner shape,
+so any theme is safe to use. See [themes/README.md](themes/README.md).
+
+---
+
+## Credits
+
+We each built a version first, then combined the best of both.
+From Bilan's version: reading handwriting, photos and documents, the photo viewer,
+the shield, themes, the app window and the model picker. From David's version:
+what has changed, what you owe, the decision log, private notes, and answers that
+work without the AI. David's original is at
+[github.com/davidxu16/ai-assistant](https://github.com/davidxu16/ai-assistant).
+
+Challenge set by **Pfizer's OSS AI Studio** and **Newpage Solutions**.
