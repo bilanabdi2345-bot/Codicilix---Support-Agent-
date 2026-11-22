@@ -577,6 +577,38 @@ class Models(unittest.TestCase):
             self.assertEqual(models.extras("llama3.2:3b"), {})
 
 
+class HonestAnswers(unittest.TestCase):
+    """Fixes from trying it for real: off-topic questions, low confidence, and
+    warnings written by code instead of the AI."""
+
+    def test_off_topic_questions_are_not_answered(self):
+        for q in ["tv and show", "what does lion mean", "did i ate megan cake"]:
+            self.assertFalse(brain.prepare(q, comps())["found"], q)
+        self.assertTrue(brain.prepare("What did Megan cover in the intern training?", comps())["found"])
+
+    def test_the_ais_garbled_warning_lines_are_dropped(self):
+        self.assertEqual(brain.tidy_model_text("The pilot starts 26 Jan [1]. [Not in your notes:]\nWatch out: 2 (overdue)\nNot in your notes:"),
+                         "The pilot starts 26 Jan [1].")
+
+    def test_warnings_are_written_by_code(self):
+        ctx = brain.prepare("handover for Mehreen", comps())
+        n = next(s["n"] for s in ctx["sources"] if "handover" in s["file"])
+        done = brain.finish(ctx, f"The handover says the pilot is 12 Jan [{n}].")
+        self.assertIn("handover for Mehreen (draft) is an unfinished draft.", done["warnings"])
+        self.assertEqual(done["confidence"], "low")  # one note, and it's an unfinished draft
+
+    def test_overdue_warning_is_readable(self):
+        ctx = brain.prepare("Megan's training slides", comps())
+        n = next(s["n"] for s in ctx["sources"] if s["file"].endswith("action-items.csv") and "slides" in s["text"])
+        done = brain.finish(ctx, f"Megan owes the slides [{n}].")
+        self.assertTrue(any(w.startswith("Overdue: Send training slides to Bilan and David (due 12 Dec 2026)") for w in done["warnings"]), done["warnings"])
+
+    def test_low_confidence_when_the_notes_dont_answer(self):
+        ctx = brain.prepare("When does the pilot start?", comps())
+        done = brain.finish(ctx, "That isn't in your notes [1].")
+        self.assertEqual(done["confidence"], "low")
+
+
 class Server(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

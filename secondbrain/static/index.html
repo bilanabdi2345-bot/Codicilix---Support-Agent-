@@ -290,11 +290,8 @@
             </div>
           </div>
           <div class="composer" id="composer">
-            <div class="thumbs" id="thumbs" hidden></div>
             <div class="row">
-              <button class="clip" id="clipBtn" title="Add a photo or screenshot (or paste / drop one)" aria-label="Add a picture">📎</button>
-              <input type="file" id="clipFile" accept="image/png,image/jpeg,image/heic" multiple hidden>
-              <textarea id="q" rows="1" placeholder="Ask about your notes… or paste a photo or screenshot" aria-label="Your question"></textarea>
+              <textarea id="q" rows="1" placeholder="Ask about your notes…" aria-label="Your question"></textarea>
               <button class="btn primary" id="askBtn">Ask</button>
             </div>
           </div>
@@ -786,36 +783,8 @@ function sourceCard(s, id) {
     <pre>${esc(s.text)}</pre></div>`;
 }
 
-/* ---------- Pictures: paste, drop or attach (kept in memory only) ---------- */
-const attachments = [];
+/* ---------- Words to highlight on photos ---------- */
 const STOP_WORDS = new Set("the and for what when where which who why how does did was were are this that with from have has about into your you my our they them their its can could would should will just like any some all not but out over".split(" "));
-function renderThumbs() {
-  const box = $("thumbs");
-  box.hidden = !attachments.length;
-  box.innerHTML = attachments.map((im, i) => `<div class="thumb" title="${esc(im.name)}"><img src="${im.data}" alt="${esc(im.name)}"><button data-i="${i}" aria-label="Remove picture">×</button></div>`).join("");
-  box.querySelectorAll("button").forEach(b => b.onclick = () => { attachments.splice(+b.dataset.i, 1); renderThumbs(); });
-}
-function addFiles(files) {
-  for (const f of files) {
-    if (!f.type.startsWith("image/") || attachments.length >= 3) continue;
-    if (f.size > 12 * 1024 * 1024) { alertBox("That picture is too big (over 12 MB)."); continue; }
-    const reader = new FileReader();  // read on this laptop; it only goes to Codicilix, which runs here
-    reader.onload = () => { attachments.push({ name: f.name && f.name !== "image.png" ? f.name : `pasted picture ${attachments.length + 1}`, data: reader.result }); renderThumbs(); };
-    reader.readAsDataURL(f);
-  }
-}
-function alertBox(msg) { const m = $("thumbs"); m.hidden = false; m.insertAdjacentHTML("beforeend", `<span class="error">${esc(msg)}</span>`); }
-$("clipBtn").onclick = () => $("clipFile").click();
-$("clipFile").onchange = e => { addFiles(e.target.files); e.target.value = ""; };
-document.addEventListener("paste", e => {
-  if (!document.getElementById("page-ask").classList.contains("on")) return;
-  const files = [...(e.clipboardData?.items || [])].filter(i => i.kind === "file").map(i => i.getAsFile()).filter(Boolean);
-  if (files.length) { e.preventDefault(); addFiles(files); }
-});
-const comp = $("composer");
-["dragenter", "dragover"].forEach(ev => comp.addEventListener(ev, e => { e.preventDefault(); comp.classList.add("drag"); }));
-["dragleave", "drop"].forEach(ev => comp.addEventListener(ev, e => { e.preventDefault(); comp.classList.remove("drag"); }));
-comp.addEventListener("drop", e => addFiles(e.dataTransfer.files));
 
 /* ---------- Photo viewer: select text on the photo, highlight matches (like Google Lens) ---------- */
 let viewerText = "", viewerUrl = null;
@@ -914,15 +883,13 @@ $("modelPanel").onclick = e => { if (e.target.id === "modelPanel") $("modelPanel
 let answerCount = 0;
 async function ask(question, opts = {}) {
   question = question.trim();
-  const images = attachments.splice(0); renderThumbs();
-  if (!question && !images.length) { $("q").focus(); return; }
+  if (!question) { $("q").focus(); return; }
   show("ask");
   $("hello")?.remove();
   const id = "a" + (++answerCount);
   const you = document.createElement("div");
   you.className = "you";
-  if (images.length) you.innerHTML = `<div class="thumbs">${images.map(im => `<div class="thumb"><img src="${im.data}" alt=""></div>`).join("")}</div>`;
-  you.append(document.createTextNode(question || "What does this picture say?"));
+  you.textContent = question;
   if (opts.focus) you.insertAdjacentHTML("beforeend", `<div class="small" style="opacity:.85;margin-top:4px">📷 reading ${esc(opts.focus.split("/").pop())} first</div>`);
   const card = document.createElement("div");
   card.className = "card answer"; card.id = id;
@@ -1043,6 +1010,7 @@ async function ask(question, opts = {}) {
       for (const c of (ctx && ctx.changes) || []) {
         addAlert("🔁", esc(c.short));
       }
+      for (const w of ev.warnings || []) addAlert("⚠️", esc(w));
       if (ctx && ctx.private_not_read)
         addAlert("🔒", `${ctx.private_not_read} private note${ctx.private_not_read > 1 ? "s" : ""} not read. <a href="#" class="goprivate">Switch on private notes</a> if you want them included.`);
       card.querySelectorAll(".goprivate").forEach(a => a.onclick = e => { e.preventDefault(); show("folders"); });
@@ -1056,7 +1024,7 @@ async function ask(question, opts = {}) {
   };
   try {
     const r = await fetch("/api/ask-stream", { method: "POST", headers: H,
-      body: JSON.stringify({ question, focus: opts.focus || null, images: images.map(im => ({ name: im.name, data: im.data })) }) });
+      body: JSON.stringify({ question, focus: opts.focus || null }) });
     if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || "Something went wrong."); }
     const reader = r.body.getReader(), dec = new TextDecoder();
     let buf = "";

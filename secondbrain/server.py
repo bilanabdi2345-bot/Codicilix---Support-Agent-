@@ -42,6 +42,8 @@ class App:
         self.session_reads = []
         self.pastes = {}
         ocr.forget()
+        from . import docs
+        docs.forget()
 
     def find_image(self, rel):
         """The real path of a photo or screenshot, only if it is in a switched-on
@@ -301,11 +303,12 @@ def make_handler(app, port):
                         if len(held) < 120:
                             continue
                         checked = True
-                        if models.looks_like_thinking(held):
+                        # Only models that can think out loud are watched (Llama 3.2 can't, so it never is).
+                        if models.thinks(app.model) and models.looks_like_thinking(held):
                             stream.close()  # stop the model; it is unloaded straight away
                             ctx["code_answer"] = brain.quote_answer(ctx)
                             reason = (f"{app.model} started thinking out loud instead of answering, so I stopped it. "
-                                      "Try llama3.2:3b with the AI button at the top.")
+                                      "For written answers, choose llama3.2:3b with the AI button at the top.")
                             done = brain.code_done(ctx, f"{app.model} started thinking out loud instead of answering, "
                                                         "so here are the exact lines from your notes. For a written "
                                                         "answer, choose another model with the AI button at the top.")
@@ -319,11 +322,11 @@ def make_handler(app, port):
                     if not quiet:
                         emit({"type": "token", "text": piece})
                 if held and not checked:
-                    if models.looks_like_thinking(held):
+                    if models.thinks(app.model) and models.looks_like_thinking(held):
                         ctx["code_answer"] = brain.quote_answer(ctx)
                         done = brain.code_done(ctx, "The AI didn't give a direct answer, so here are the exact lines from your notes.")
                         return emit({"type": "done", **done, "sources": ctx["sources"], "no_ai": True,
-                                     "no_ai_reason": f"{app.model} didn't give a direct answer. Try llama3.2:3b with the AI button at the top."})
+                                     "no_ai_reason": f"{app.model} didn't give a direct answer. For written answers, choose llama3.2:3b with the AI button at the top."})
                     text += held
                     if not brain.bad_yes_no(held, ctx["missing"]):
                         emit({"type": "token", "text": held})

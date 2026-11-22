@@ -35,8 +35,27 @@ R = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
 PR = "{http://schemas.openxmlformats.org/package/2006/relationships}"
 
 
+_memory = {}  # (path, modified time, size) -> text. Memory only; wiped by "Forget this session".
+
+
+def forget():
+    _memory.clear()
+
+
 def extract(path):
-    """Return the text of a Word, Excel or PDF file, or None if it can't be read."""
+    """Return the text of a Word, Excel or PDF file, or None if it can't be read.
+    Each file is read once per session (in memory only), so questions stay fast."""
+    try:
+        st = os.stat(path)
+        key = (path, st.st_mtime, st.st_size)
+    except OSError:
+        return None
+    if key not in _memory:
+        _memory[key] = _extract(path)
+    return _memory[key]
+
+
+def _extract(path):
     ext = os.path.splitext(path)[1].lower()
     try:
         if ext == ".docx":
