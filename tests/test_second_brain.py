@@ -805,5 +805,47 @@ class HelixFileTypesTest(unittest.TestCase):
         self.assertEqual([str(c.date) for c in msgs], ["2026-12-10", "2026-12-16", "2026-12-19"])
         self.assertIn("£50k", msgs[0].text)
 
+
+class WindowsReaderTest(unittest.TestCase):
+    """Windows' built-in text reader: its answer is read like the Mac reader's."""
+
+    def test_windows_answer_is_used(self):
+        from secondbrain import ocr
+        photo = os.path.join(SAMPLE, "Helix", "notebook_pre_holiday.jpg")
+        answer = json.dumps([{"path": os.path.abspath(photo), "text": "18/12 Pre-Holiday Wrap-up",
+                              "words": [{"t": "Wrap-up", "x": 0.5, "y": 0.2, "w": 0.2, "h": 0.03}],
+                              "width": 954, "height": 2016}]).encode()
+        ran = []
+
+        def fake_run(cmd, **kw):
+            ran.append(cmd)
+            return mock.Mock(stdout=answer)
+
+        ocr.forget()
+        with mock.patch.object(ocr, "engine", return_value="Windows text reader (built into Windows)"), \
+                mock.patch.object(ocr.subprocess, "run", fake_run):
+            got = ocr.analyse([photo])
+        ocr.forget()
+        self.assertEqual(got[photo]["text"], "18/12 Pre-Holiday Wrap-up")
+        self.assertEqual(got[photo]["words"][0]["t"], "Wrap-up")
+        self.assertIn("-ExecutionPolicy", ran[0])
+        self.assertTrue(ran[0][-1].endswith("notebook_pre_holiday.jpg"))
+
+
+class NoGuessedYesNoTest(unittest.TestCase):
+    """Not in the notes means "I couldn't find it", never a yes or a no."""
+
+    def test_guessed_no_is_replaced(self):
+        text = "* No, you did not eat Megan cake. [Not in your notes:]\nMegan: send training slides [2]"
+        fixed, words = brain.fix_yes_no(text, ["ate", "cake"])
+        self.assertEqual(words, ["cake"])
+        self.assertTrue(fixed.startswith("I couldn't find anything about cake in your notes"))
+        self.assertNotIn("No, you did not", fixed)
+
+    def test_real_answers_are_left_alone(self):
+        self.assertEqual(brain.fix_yes_no("Yes, the pilot moved to 26 Jan [1]", ["say"])[1], [])
+        self.assertEqual(brain.fix_yes_no("No, the pilot did not move [1]", [])[1], [])
+        self.assertEqual(brain.fix_yes_no("Megan didn't mention cake [1]", ["cake"])[1], [])
+
 if __name__ == "__main__":
     unittest.main()

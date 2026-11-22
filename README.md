@@ -41,17 +41,20 @@ David's original version, with its browser demo and Windows support, is at
 
 ## On Windows
 
-Codicilix is plain Python, so it runs on Windows too. Install Python 3 and Ollama, then
-double-click `start-windows.bat` (or run `python -m secondbrain`). It opens in your browser.
+Codicilix is plain Python, so it runs on Windows too.
 
-A few things are Mac-only, and Windows does something simpler instead:
+1. Install Python 3 from python.org (tick **Add python.exe to PATH**), and Ollama from ollama.com.
+2. Download this repo (green **Code** button, then **Download ZIP**) and unzip it.
+3. Double-click `start-windows.bat`. Codicilix opens in your browser.
 
-- **Reading photos and screenshots** uses Apple's text reader on a Mac. On Windows, install
-  Tesseract (free) and Codicilix uses that. Without it, photos are skipped and the check-up says so.
+Photos and screenshots are read by Windows' own built-in text reader, on the laptop, like
+David's version did. Nothing to install.
+
+A few things are simpler on Windows than on a Mac:
+
 - **Scanned PDFs** are read by the Mac. On Windows, PDFs with real text still work.
 - **The folder picker** is the Mac's. On Windows, type or paste the folder path.
-- **The app window and the Codicilix app icon** are made by a Mac script. On Windows it opens in a
-  normal browser tab.
+- **The app window** is made by a Mac script. On Windows it opens in a normal browser tab.
 
 ## A second sample: Project Helix
 

@@ -2,7 +2,8 @@
 
 On a Mac it uses Apple's built-in Vision text reader, through a tiny helper
 program (bin/second-brain-ocr, built from scripts/ocr.swift).
-Elsewhere it uses Tesseract if installed.
+On Windows it uses Windows' own built-in text reader (scripts/windows_ocr.ps1,
+from David's version). Elsewhere it uses Tesseract if installed.
 
 Besides the text, it finds where each word sits on the picture, so the app can
 let you select words on the photo and highlight the ones that matter, a bit
@@ -21,6 +22,13 @@ import threading
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MAC_HELPER = os.path.join(ROOT, "bin", "second-brain-ocr")
+WIN_SCRIPT = os.path.join(ROOT, "scripts", "windows_ocr.ps1")
+WIN_POWERSHELL = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32",
+                              "WindowsPowerShell", "v1.0", "powershell.exe")
+# "-ExecutionPolicy Bypass" applies to this one process only; it changes no setting.
+WIN_COMMAND = [WIN_POWERSHELL, "-NoLogo", "-NoProfile", "-NonInteractive",
+               "-ExecutionPolicy", "Bypass", "-File", WIN_SCRIPT]
+WIN_FLAGS = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 _memory = {}  # (path, modified time, size) -> {"text", "words", "width", "height"}. Memory only.
 _lock = threading.Lock()
@@ -31,6 +39,8 @@ def engine():
         return "test reader"
     if os.path.exists(MAC_HELPER) and os.access(MAC_HELPER, os.X_OK):
         return "Apple Vision (built into your Mac)"
+    if os.name == "nt" and os.path.isfile(WIN_POWERSHELL) and os.path.isfile(WIN_SCRIPT):
+        return "Windows text reader (built into Windows)"
     if shutil.which("tesseract"):
         return "Tesseract"
     return None
@@ -111,6 +121,21 @@ def _read_paths(paths):
             return {r["path"]: d for r, d in zip(results, _from_mac(results)) if d["text"]}
         except Exception:
             return {}
+    if which.startswith("Windows"):
+        found = {}
+        for i in range(0, len(paths), 25):
+            batch = [os.path.abspath(p) for p in paths[i:i + 25]]
+            back = dict(zip(batch, paths[i:i + 25]))
+            try:
+                out = subprocess.run(WIN_COMMAND + batch, capture_output=True, input=b"",
+                                     timeout=180, creationflags=WIN_FLAGS).stdout
+                results = json.loads(out.decode("utf-8", errors="replace") or "[]")
+                for r, d in zip(results, _from_mac(results)):
+                    if d["text"] and r.get("path") in back:
+                        found[back[r["path"]]] = d
+            except Exception:
+                pass
+        return found
     found = {}
     for p in paths:
         try:
@@ -163,6 +188,12 @@ def analyse_bytes(data):
         if which.startswith("Apple"):
             out = subprocess.run([MAC_HELPER, "-"], input=data, capture_output=True, timeout=120).stdout
             results = json.loads(out.decode("utf-8") or "[]")
+            return _from_mac(results)[0] if results else _empty()
+        if which.startswith("Windows"):
+            import base64
+            out = subprocess.run(WIN_COMMAND + ["-"], input=base64.b64encode(data), capture_output=True,
+                                 timeout=120, creationflags=WIN_FLAGS).stdout
+            results = json.loads(out.decode("utf-8", errors="replace") or "[]")
             return _from_mac(results)[0] if results else _empty()
         tsv = subprocess.run(["tesseract", "stdin", "stdout", "--psm", "3", "tsv"],
                              input=data, capture_output=True, timeout=60).stdout

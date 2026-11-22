@@ -38,17 +38,13 @@ if git diff --cached --quiet; then
   echo "Nothing new to push."
 else
   git commit -q -F - <<'MSG'
-Add the Project Helix sample notes, and read emails, Teams exports and RTF
+Never answer yes or no about something the notes don't mention
 
-Helix is a messy, partly out-of-date set of notes for the Q1 catch-up:
-a notebook photo, a sticky note, an old TextEdit scratchpad, Teams
-messages to yourself, a budget tracker with side notes and an email.
-Codicilix now reads .eml (who, when, subject, body), .json chat exports
-(each message dated by its own timestamp) and .rtf as plain text.
-Helix starts switched off in Folders & access.
-
-Also works better on Windows: file paths use / everywhere, the settings
-file is read as UTF-8, and start-windows.bat starts the app.
+Asked "did I eat Megan's cake?", the AI answered "No" because Megan is in
+the notes but cake isn't. Now the AI is told not to, and code checks the
+answer: a yes or no about a word no note mentions is replaced with "I
+couldn't find anything about cake in your notes, so I can't say yes or
+no", the confidence drops to low, and the guess is never shown on screen.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01VVwckDT7HZbWnG791fhe7d

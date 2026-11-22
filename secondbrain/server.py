@@ -292,7 +292,7 @@ def make_handler(app, port):
                 if ctx.get("code_answer"):
                     done = brain.code_done(ctx, "Found by code and quoted from your notes. No AI was used, so nothing was made up.")
                     return emit({"type": "done", **done, "sources": ctx["sources"]})
-                text, held, checked = "", "", False
+                text, held, checked, quiet = "", "", False, False
                 stream = brain.ask_model_stream(ctx["prompt"], app.model, app.keep_alive)
                 for piece in stream:
                     if not checked:
@@ -312,8 +312,12 @@ def make_handler(app, port):
                             return emit({"type": "done", **done, "sources": ctx["sources"], "no_ai": True,
                                          "no_ai_reason": reason})
                         piece, held = held, ""
+                        # A guessed yes or no about something no note mentions: don't show it
+                        # while it's written; the honest answer replaces it at the end.
+                        quiet = bool(brain.bad_yes_no(piece, ctx["missing"]))
                     text += piece
-                    emit({"type": "token", "text": piece})
+                    if not quiet:
+                        emit({"type": "token", "text": piece})
                 if held and not checked:
                     if models.looks_like_thinking(held):
                         ctx["code_answer"] = brain.quote_answer(ctx)
@@ -321,7 +325,8 @@ def make_handler(app, port):
                         return emit({"type": "done", **done, "sources": ctx["sources"], "no_ai": True,
                                      "no_ai_reason": f"{app.model} didn't give a direct answer. Try llama3.2:3b with the AI button at the top."})
                     text += held
-                    emit({"type": "token", "text": held})
+                    if not brain.bad_yes_no(held, ctx["missing"]):
+                        emit({"type": "token", "text": held})
                 done = brain.finish(ctx, text)
                 emit({"type": "done", **done, "sources": ctx["sources"]})
             except (urllib.error.URLError, ConnectionError, TimeoutError) as e:
