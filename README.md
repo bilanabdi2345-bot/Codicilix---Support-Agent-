@@ -32,7 +32,8 @@ The conversation exists only in the open page. **New chat**, a refresh or **End 
 You need Python 3.10 or newer. Nothing to install: it uses only Python's standard library.
 
 ```
-cd second-brain
+git clone https://github.com/davidxu16/ai-assistant.git
+cd ai-assistant
 python app.py
 ```
 
