@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html lang="en" data-accent="teal" data-mode="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Codicilix</title>
+<style>
+  /* ---------- Themes (change them on the Appearance page) ---------- */
+  :root {
+    --fs: 17px;
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter, sans-serif;
+    --ls: 0.005em; --ws: normal; --lh: 1.6;
+    --radius: 14px;
+    --bg: #f6f5f1; --panel: #ffffff; --sunk: #f1efe9; --text: #1d1d1b; --muted: #6b6a64; --line: #e6e3db;
+    --warn: #8a5100; --warn-soft: #fdf1dc; --bad: #b42318; --bad-soft: #fdecea; --good: #18794e; --good-soft: #e4f5ec;
+    --shadow: 0 1px 2px rgba(20,20,15,.04), 0 4px 16px rgba(20,20,15,.05);
+    --a-text: var(--a);
+  }
+  :root[data-accent="teal"]   { --a: #0f7a61; --a-soft: #e2f4ee; --a-ink: #fff; }
+  :root[data-accent="indigo"] { --a: #4f46c8; --a-soft: #ebeafd; --a-ink: #fff; }
+  :root[data-accent="rose"]   { --a: #c2335f; --a-soft: #fde8ef; --a-ink: #fff; }
+  :root[data-accent="amber"]  { --a: #b45c06; --a-soft: #fdf0de; --a-ink: #fff; }
+  :root[data-accent="ocean"]  { --a: #0b6aa8; --a-soft: #e3f1fb; --a-ink: #fff; }
+  :root[data-accent="graphite"] { --a: #3d3d3a; --a-soft: #ecebe6; --a-ink: #fff; }
+
+  @media (prefers-color-scheme: dark) { :root[data-mode="auto"] { color-scheme: dark;
+    --bg: #161615; --panel: #1f1f1d; --sunk: #191918; --text: #f0efea; --muted: #a8a69e; --line: #33332f;
+    --warn: #f6c26b; --warn-soft: #3a2a0d; --bad: #f29b92; --bad-soft: #3b1714; --good: #6fd3a2; --good-soft: #10301f;
+    --shadow: none; } }
+  :root[data-mode="dark"] { color-scheme: dark;
+    --bg: #161615; --panel: #1f1f1d; --sunk: #191918; --text: #f0efea; --muted: #a8a69e; --line: #33332f;
+    --warn: #f6c26b; --warn-soft: #3a2a0d; --bad: #f29b92; --bad-soft: #3b1714; --good: #6fd3a2; --good-soft: #10301f;
+    --shadow: none; }
+  @media (prefers-color-scheme: dark) { :root[data-mode="auto"][data-accent] { --a-soft: color-mix(in srgb, var(--a) 22%, #1f1f1d); } }
+  :root[data-mode="dark"][data-accent] { --a-soft: color-mix(in srgb, var(--a) 22%, #1f1f1d); }
+  @media (prefers-color-scheme: dark) { :root[data-mode="auto"][data-accent="graphite"] { --a: #e7e5dd; --a-ink: #161615; } }
+  :root[data-mode="dark"][data-accent="graphite"] { --a: #e7e5dd; --a-ink: #161615; }
+
+  /* In dark mode, lighten accent-coloured text so it stays easy to read */
+  @media (prefers-color-scheme: dark) { :root[data-mode="auto"] { --a-text: color-mix(in srgb, var(--a) 55%, #ffffff); } }
+  :root[data-mode="dark"] { --a-text: color-mix(in srgb, var(--a) 55%, #ffffff); }
+
+  /* Easy-read mode: more space between letters, words and lines */
+  :root[data-easy="1"] { --font: Verdana, "Trebuchet MS", sans-serif; --ls: 0.04em; --ws: 0.14em; --lh: 1.9; }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--text); font: var(--fs)/var(--lh) var(--font);
+    letter-spacing: var(--ls); word-spacing: var(--ws); -webkit-font-smoothing: antialiased; }
+  button, input, textarea, select { font: inherit; letter-spacing: inherit; word-spacing: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--a); outline-offset: 2px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 0.85em; }
+  h1 { font-size: 1.45em; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
+  h2 { font-size: 1.05em; font-weight: 650; margin: 0 0 10px; }
+
+  /* ---------- Shell ---------- */
+  .app { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+  nav.side { background: var(--panel); border-right: 1px solid var(--line); padding: 18px 14px;
+    display: flex; flex-direction: column; gap: 4px; position: sticky; top: 0; height: 100vh; }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 18px; font-weight: 700; font-size: 1.1em; }
+  .mark { width: 34px; height: 34px; border-radius: 10px; background: var(--a); color: var(--a-ink);
+    display: grid; place-items: center; }
+  .navbtn { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px;
+    border: 0; background: transparent; text-align: left; cursor: pointer; color: var(--muted); font-weight: 550; }
+  .navbtn:hover { background: var(--sunk); color: var(--text); }
+  .navbtn.on { background: var(--a-soft); color: var(--a-text); }
+  .navbtn svg { width: 20px; height: 20px; flex: none; }
+  .side .spacer { flex: 1; }
+  .shield { border: 1px solid var(--line); border-radius: 12px; padding: 12px; font-size: 0.85em; cursor: pointer; background: var(--sunk); }
+  .shield b { display: flex; align-items: center; gap: 6px; color: var(--good); }
+  .shield.warn b { color: var(--warn); }
+  .shield.bad b { color: var(--bad); }
+
+  main { min-width: 0; display: flex; flex-direction: column; }
+  .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 18px 28px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 85%, transparent);
+    position: sticky; top: 0; z-index: 5; backdrop-filter: blur(8px); }
+  .pills { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8em; padding: 4px 12px; border-radius: 999px;
+    background: var(--good-soft); color: var(--good); font-weight: 600; white-space: nowrap; }
+  .pill.warn { background: var(--warn-soft); color: var(--warn); }
+  .pill.bad { background: var(--bad-soft); color: var(--bad); }
+  .pill.plain { background: var(--sunk); color: var(--muted); }
+  .page { display: none; padding: 24px 28px 40px; }
+  .page.on { display: block; }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow); }
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 22px; align-items: start; }
+  @media (max-width: 1100px) { .grid2 { grid-template-columns: 1fr; } .app { grid-template-columns: 1fr; } nav.side { position: static; height: auto; flex-direction: row; flex-wrap: wrap; } .side .spacer, .shield { display: none; } }
+  .stack { display: flex; flex-direction: column; gap: 16px; }
+
+  .btn { border: 1px solid var(--line); background: var(--panel); border-radius: 10px; padding: 8px 15px; cursor: pointer; font-size: 0.92em; font-weight: 550; }
+  .btn:hover { border-color: var(--a); color: var(--a); }
+  .btn.primary { background: var(--a); border-color: var(--a); color: var(--a-ink); }
+  .btn.primary:hover { filter: brightness(1.08); color: var(--a-ink); }
+  .btn:disabled { opacity: .55; cursor: wait; }
+
+  .switch { position: relative; width: 48px; height: 28px; flex: none; display: inline-block; }
+  .switch input { opacity: 0; position: absolute; inset: 0; margin: 0; cursor: pointer; z-index: 1; }
+  .switch span { position: absolute; inset: 0; background: var(--line); border-radius: 14px; transition: background .2s; }
+  .switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.2); transition: transform .2s; }
+  .switch input:checked + span { background: var(--a); }
+  .switch input:checked + span::after { transform: translateX(20px); }
+  .switch input:focus-visible + span { outline: 2px solid var(--a); outline-offset: 2px; }
+
+  /* ---------- Ask ---------- */
+  .thread { display: flex; flex-direction: column; gap: 18px; min-height: 40vh; }
+  .hello { padding: 40px 10px 10px; text-align: center; }
+  .hello h1 { font-size: 1.8em; }
+  .you { align-self: flex-end; max-width: 80%; background: var(--a); color: var(--a-ink); padding: 10px 16px;
+    border-radius: 18px 18px 4px 18px; }
+  .answer { border-radius: 4px 18px 18px 18px; }
+  .answer .head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+  .answer .who { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 0.9em; }
+  .answer .who .dot { width: 22px; height: 22px; border-radius: 7px; background: var(--a); color: var(--a-ink); display: grid; place-items: center; font-size: 12px; }
+  .body p, .body li { margin: 5px 0; }
+  .body ul { padding-left: 22px; margin: 6px 0; }
+  .cite { display: inline-grid; place-items: center; min-width: 22px; height: 20px; font-size: 12px; font-weight: 700;
+    background: var(--a-soft); color: var(--a-text); border-radius: 6px; padding: 0 5px; margin: 0 1px; cursor: pointer;
+    border: 0; vertical-align: 1px; letter-spacing: 0; word-spacing: 0; }
+  .box { border-radius: 12px; padding: 10px 14px; margin-top: 10px; }
+  .box b { display: block; font-size: 0.85em; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 2px; }
+  .box.warn { background: var(--warn-soft); color: var(--warn); }
+  .box.miss { background: var(--sunk); color: var(--muted); border: 1px dashed var(--line); }
+  .why { margin-top: 10px; font-size: 0.88em; color: var(--muted); }
+  details.sources { margin-top: 10px; }
+  details.sources summary { cursor: pointer; font-weight: 600; font-size: 0.9em; color: var(--a-text); }
+  .src { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-top: 8px; font-size: 0.88em; background: var(--sunk); }
+  .src.used { border-left: 4px solid var(--a); }
+  .src.flash { outline: 2px solid var(--a); }
+  .src .meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .src pre { white-space: pre-wrap; font: 0.95em/1.55 ui-monospace, Menlo, monospace; margin: 8px 0 0; letter-spacing: 0; word-spacing: 0; }
+  .tag { font-size: 0.78em; padding: 1px 9px; border-radius: 999px; background: var(--panel); color: var(--muted); border: 1px solid var(--line); }
+  .tag.flag { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+  .thinking { color: var(--muted); display: flex; align-items: center; gap: 10px; }
+  .spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--a); animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+  .composer { position: sticky; bottom: 0; padding: 14px 0 4px; background: linear-gradient(transparent, var(--bg) 30%); }
+  .composer .row { display: flex; gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 8px; box-shadow: var(--shadow); }
+  .composer textarea { flex: 1; border: 0; resize: none; background: transparent; padding: 8px 10px; min-height: 44px; outline: none; }
+  .quick button { display: flex; width: 100%; text-align: left; gap: 10px; align-items: center; border: 1px solid var(--line);
+    background: var(--panel); border-radius: 12px; padding: 10px 12px; cursor: pointer; margin-top: 8px; font-size: 0.92em; }
+  .quick button:hover { border-color: var(--a); }
+  .quick .ico { width: 28px; height: 28px; border-radius: 8px; background: var(--a-soft); color: var(--a-text); display: grid; place-items: center; flex: none; font-size: 15px; }
+  .next { background: var(--a); color: var(--a-ink); border: 0; }
+  .next .muted { color: inherit; opacity: .8; }
+  .next .btn { background: var(--a-ink); color: var(--a); border-color: transparent; margin-top: 10px; }
+
+  /* ---------- Meetings ---------- */
+  .meets { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+  .meet { display: flex; gap: 14px; }
+  .cal { flex: none; width: 58px; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); text-align: center; align-self: flex-start; }
+  .cal .m { background: var(--a); color: var(--a-ink); font-size: 0.72em; font-weight: 700; text-transform: uppercase; padding: 2px 0; letter-spacing: .08em; }
+  .cal .d { font-size: 1.5em; font-weight: 700; padding: 2px 0 4px; background: var(--panel); }
+  .meet .title { font-weight: 650; }
+  .rel { margin: 8px 0 0; padding: 0; list-style: none; font-size: 0.86em; }
+  .rel li { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; }
+  .rel .k { font-size: 0.8em; }
+  .section-title { margin: 6px 0 12px; display: flex; align-items: baseline; gap: 10px; }
+
+  /* ---------- Folders ---------- */
+  .folder { display: flex; align-items: center; gap: 14px; padding: 14px 0; border-top: 1px solid var(--line); }
+  .folder:first-of-type { border-top: 0; }
+  .ficon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--a-soft); color: var(--a-text); flex: none; }
+  .folder.off .ficon { background: var(--sunk); color: var(--muted); }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+  .kind { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 12px 0; border-top: 1px solid var(--line); }
+  .kind:first-of-type { border-top: 0; }
+  input[type=text] { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--sunk); }
+  .error { color: var(--bad); font-size: 0.88em; }
+
+  /* ---------- Check-up ---------- */
+  .hero { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  .hero .big { width: 64px; height: 64px; border-radius: 20px; display: grid; place-items: center; font-size: 30px; background: var(--good-soft); color: var(--good); }
+  .hero.warn .big { background: var(--warn-soft); color: var(--warn); }
+  .hero.bad .big { background: var(--bad-soft); color: var(--bad); }
+  .hero.idle .big { background: var(--sunk); color: var(--muted); }
+  .res { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+  .res:first-child { border-top: 0; }
+  .tick { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; font-weight: 800; background: var(--good-soft); color: var(--good); }
+  .tick.warn { background: var(--warn-soft); color: var(--warn); }
+  .tick.fail { background: var(--bad-soft); color: var(--bad); }
+  .res .t { font-weight: 650; }
+  .res .d { font-size: 0.88em; color: var(--muted); }
+
+  /* ---------- Appearance ---------- */
+  .swatches { display: flex; gap: 10px; flex-wrap: wrap; }
+  .sw { width: 46px; height: 46px; border-radius: 14px; border: 3px solid transparent; cursor: pointer; }
+  .sw.on { border-color: var(--text); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .seg button { border: 0; background: var(--panel); padding: 8px 16px; cursor: pointer; }
+  .seg button.on { background: var(--a); color: var(--a-ink); }
+  .setrow { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
+  .setrow:first-of-type { border-top: 0; }
+  input[type=range] { accent-color: var(--a); width: 220px; }
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; }
+  .tcard { border: 2px solid var(--line); border-radius: 14px; padding: 8px; cursor: pointer; background: var(--panel); text-align: left; position: relative; }
+  .tcard:hover { border-color: var(--a); }
+  .tcard.on { border-color: var(--a); box-shadow: 0 0 0 3px var(--a-soft); }
+  .tprev { height: 86px; border-radius: 9px; padding: 9px; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
+  .tprev .p { border-radius: 6px; padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; }
+  .tprev .l { height: 5px; border-radius: 3px; }
+  .tprev .b { width: 46px; height: 12px; border-radius: 6px; }
+  .tname { font-weight: 650; font-size: 0.9em; margin-top: 7px; }
+  .tby { font-size: 0.75em; color: var(--muted); }
+  .tdel { position: absolute; top: 4px; right: 6px; border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 16px; }
+  .maker { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .maker label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85em; font-weight: 600; }
+  .maker input[type=color] { width: 100%; height: 40px; border: 1px solid var(--line); border-radius: 10px; padding: 3px; background: var(--panel); cursor: pointer; }
+  .maker select, .maker input[type=text] { padding: 9px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--sunk); }
+  /* ---------- Pictures: attach, view, select text ---------- */
+  .thumbs { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 4px 8px; }
+  .thumb { position: relative; width: 64px; height: 64px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); background: var(--sunk); }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb button { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border-radius: 50%; border: 0;
+    background: rgba(0,0,0,.6); color: #fff; font-size: 12px; line-height: 20px; padding: 0; cursor: pointer; }
+  .you .thumbs { padding: 0 0 6px; }
+  .you .thumb { border-color: transparent; }
+  .clip { border: 0; background: transparent; font-size: 20px; cursor: pointer; padding: 4px 8px; border-radius: 10px; }
+  .clip:hover { background: var(--sunk); }
+  .composer.drag .row { outline: 2px dashed var(--a); outline-offset: 4px; }
+  .picrow { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+  .pictile { display: flex; flex-direction: column; gap: 6px; padding: 6px; border: 1px solid var(--line); border-radius: 12px;
+    background: var(--panel); cursor: zoom-in; width: 170px; text-align: left; font: inherit; color: inherit; }
+  .pictile:hover { border-color: var(--a); }
+  .pictile img, .pictile .nopic { width: 100%; height: 110px; object-fit: contain; border-radius: 8px; background: var(--sunk); display: flex; align-items: center; justify-content: center; font-size: 28px; }
+  .pictile span { font-size: 0.82em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .maybe-pic { display: flex; flex-direction: column; gap: 6px; width: 170px; }
+  .small-btn { padding: 6px 10px; font-size: 0.85em; }
+  .answer .body p { margin: 0 0 8px; line-height: 1.6; }
+  .noteline { font-size: 0.95em; color: var(--muted); margin-top: 6px !important; }
+  .noteline.warnline { color: inherit; }
+  .alerts { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+  .alertline { font-size: 0.92em; padding: 6px 10px; border-radius: 10px; background: var(--sunk); line-height: 1.5; }
+  .alertline a { color: var(--a); }
+  .picbox { margin-top: 10px; }
+  .review { margin-top: 12px; border: 0; background: transparent; color: var(--a); font: inherit; font-weight: 600;
+    cursor: pointer; padding: 6px 0; }
+  .review:hover { text-decoration: underline; }
+  .more { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 4px; }
+  .box.changed { border: 1px solid var(--a); background: color-mix(in srgb, var(--a) 8%, var(--panel)); }
+  .box.shield { border: 1px solid #e0a100; background: color-mix(in srgb, #ffd54a 14%, var(--panel)); }
+  .box.shield pre { white-space: pre-wrap; max-height: 220px; overflow: auto; }
+  button.pill { border: 0; cursor: pointer; font: inherit; }
+  .viewer { position: fixed; inset: 0; z-index: 50; background: rgba(10,10,10,.72); display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .viewer .panel { background: var(--panel); border-radius: 16px; max-width: min(1100px, 96vw); max-height: 94vh; display: flex; flex-direction: column; overflow: hidden; }
+  .viewer .bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .viewer .stage { overflow: auto; padding: 16px; background: var(--sunk); }
+  .viewer .pic { position: relative; display: inline-block; line-height: 0; }
+  .viewer .pic img { max-width: min(1050px, 90vw); max-height: 70vh; display: block; border-radius: 6px; }
+  .ocrword { position: absolute; color: transparent; line-height: 1; white-space: pre; cursor: text; border-radius: 3px;
+    user-select: text; -webkit-user-select: text; overflow: hidden; }
+  .ocrword:hover { background: rgba(80,140,255,.18); outline: 1px solid rgba(80,140,255,.5); }
+  .ocrword::selection { background: rgba(80,140,255,.45); color: transparent; }
+  .ocrword.hl { background: rgba(255,214,0,.42); outline: 2px solid rgba(230,180,0,.9); }
+  .viewer .foot { padding: 10px 16px; border-top: 1px solid var(--line); font-size: 0.85em; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="side" aria-label="Pages">
+    <div class="brand"><div class="mark"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 3 3h1V4z"/><path d="M15 4a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-3 3h-1V4z"/></svg></div>Codicilix</div>
+    <button class="navbtn on" data-page="ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>Ask</button>
+    <button class="navbtn" data-page="meetings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Meetings</button>
+    <button class="navbtn" data-page="folders"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Folders &amp; access</button>
+    <button class="navbtn" data-page="checkup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>Check-up</button>
+    <button class="navbtn" data-page="look"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="8.5" cy="10" r="1.2"/><circle cx="12" cy="7.5" r="1.2"/><circle cx="15.5" cy="10" r="1.2"/><path d="M12 21a2.5 2.5 0 0 1 0-5h2a3 3 0 0 0 3-3"/></svg>Appearance</button>
+    <div class="spacer"></div>
+    <div class="shield" id="shield" title="Open the check-up"><b>✓ Protected</b><span class="muted" id="shieldText">Nothing leaves this laptop</span></div>
+  </nav>
+
+  <main>
+    <div class="topbar">
+      <h1 id="pageTitle">Ask</h1>
+      <div class="pills"><span class="pill plain" id="todayPill" hidden></span><span class="pill">🔒 Runs only on this laptop</span><button class="pill plain" id="modelPill" title="Choose the AI model">Checking AI model…</button></div>
+    </div>
+
+    <!-- ================= ASK ================= -->
+    <section class="page on" id="page-ask">
+      <div class="grid2">
+        <div>
+          <div class="thread" id="thread">
+            <div class="hello" id="hello">
+              <h1 id="greeting">Hello.</h1>
+              <p class="muted">Ask anything about your notes. I'll show exactly where every answer came from,<br>and I won't keep a copy.</p>
+            </div>
+          </div>
+          <div class="composer" id="composer">
+            <div class="thumbs" id="thumbs" hidden></div>
+            <div class="row">
+              <button class="clip" id="clipBtn" title="Add a photo or screenshot (or paste / drop one)" aria-label="Add a picture">📎</button>
+              <input type="file" id="clipFile" accept="image/png,image/jpeg,image/heic" multiple hidden>
+              <textarea id="q" rows="1" placeholder="Ask about your notes… or paste a photo or screenshot" aria-label="Your question"></textarea>
+              <button class="btn primary" id="askBtn">Ask</button>
+            </div>
+          </div>
+        </div>
+        <aside class="stack">
+          <div class="card next" id="nextCard" hidden>
+            <div class="muted small">Your next meeting</div>
+            <div style="font-weight:700;font-size:1.1em" id="nextTitle"></div>
+            <div class="small" id="nextWhen"></div>
+            <button class="btn" id="prepBtn">Prepare me</button>
+          </div>
+          <div class="card quick">
+            <h2>Quick asks</h2>
+            <button data-q="What was I in the middle of before the holidays?"><span class="ico">🎄</span>Before the holidays</button>
+            <button data-q="What has changed?"><span class="ico">🔁</span>What has changed?</button>
+            <button data-q="What do I owe people?"><span class="ico">🤝</span>What do I owe people?</button>
+            <button data-q="What have we decided?"><span class="ico">✅</span>Decision log</button>
+            <button data-q="When does the pilot start?"><span class="ico">🚀</span>When does the pilot start?</button>
+            <button data-q="What did Megan cover in the intern training?"><span class="ico">🎓</span>Megan's training</button>
+            <button data-q="What is the budget for next summer's interns?"><span class="ico">❔</span>Something not in my notes</button>
+          </div>
+          <div class="card">
+            <h2>This session</h2>
+            <div class="muted small" id="reads">Nothing read yet.</div>
+            <button class="btn" id="forgetBtn" style="margin-top:10px">Forget this session</button>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ================= MEETINGS ================= -->
+    <section class="page" id="page-meetings">
+      <p class="muted" style="margin-top:0">From your calendar files. Each meeting shows the notes written that day, and notes about the same people or topic.</p>
+      <h2 class="section-title">Coming up <span class="muted small" id="upCount"></span></h2>
+      <div class="meets" id="upcoming"></div>
+      <h2 class="section-title" style="margin-top:28px">Past <span class="muted small" id="pastCount"></span></h2>
+      <div class="meets" id="past"></div>
+    </section>
+
+    <!-- ================= FOLDERS ================= -->
+    <section class="page" id="page-folders">
+      <div class="grid2">
+        <div class="stack">
+          <div class="card" id="demoCard" hidden>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:14px">
+              <div><h2 style="margin:0">Demo mode</h2>
+                <div class="muted small" id="demoText"></div></div>
+              <label class="switch"><input type="checkbox" id="demoSwitch" aria-label="Demo mode"><span></span></label>
+            </div>
+          </div>
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:14px">
+              <div><h2 style="margin:0">🔒 Private notes</h2>
+                <div class="muted small">Files or folders named "private" or "confidential" stay closed until you switch this on. I can tell from the name alone, so I never have to open them to find out.</div></div>
+              <label class="switch"><input type="checkbox" id="privateSwitch" aria-label="Open private notes"><span></span></label>
+            </div>
+          </div>
+          <div class="card">
+            <h2>Folders I can see</h2>
+            <p class="muted small" style="margin-top:0">Switched off means never opened, not just hidden. Change your mind any time.</p>
+            <div id="folders"></div>
+          </div>
+          <div class="card">
+            <h2>Add notes</h2>
+            <p class="muted small" style="margin-top:0">Pick a folder or single files with your Mac's normal picker. I'll remember where they are (never what's in them).</p>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <button class="btn primary" id="pickFolder" style="padding:12px 18px">📁 Choose a folder…</button>
+              <button class="btn primary" id="pickFiles" style="padding:12px 18px">📄 Choose files…</button>
+            </div>
+            <div class="small" id="addMsg" style="margin-top:10px"></div>
+            <details style="margin-top:12px"><summary class="muted small" style="cursor:pointer">Or type a folder path</summary>
+              <div style="display:flex;gap:8px;margin-top:8px">
+                <input type="text" id="addPath" placeholder="e.g. ~/Documents/Notes">
+                <button class="btn" id="addBtn">Add</button>
+              </div>
+            </details>
+          </div>
+        </div>
+        <div class="card">
+          <h2>What I may read</h2>
+          <p class="muted small" style="margin-top:0">Choose the kinds of things I'm allowed to open.</p>
+          <div id="kinds"></div>
+          <p class="muted small" id="reader"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= CHECK-UP ================= -->
+    <section class="page" id="page-checkup">
+      <div class="grid2">
+        <div class="stack">
+          <div class="card hero idle" id="hero">
+            <div class="big" id="heroIcon">?</div>
+            <div style="flex:1;min-width:200px">
+              <div style="font-size:1.3em;font-weight:700" id="heroTitle">Run a check-up</div>
+              <div class="muted" id="heroText">It tests every promise: nothing leaves, nothing is kept, and you stay in control. It takes a few seconds.</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn primary" id="runCheck">Run check-up</button>
+              <button class="btn" id="monthly">Remind me monthly</button>
+            </div>
+          </div>
+          <div class="card" id="resultsCard" hidden><div id="results"></div></div>
+        </div>
+        <aside class="stack">
+          <div class="card">
+            <h2>Live</h2>
+            <div id="live"></div>
+          </div>
+          <div class="card">
+            <h2>Try it yourself</h2>
+            <button class="btn" id="leakBtn" style="width:100%">Try to break the rule</button>
+            <button class="btn" id="lsofBtn" style="width:100%;margin-top:8px">Ask my Mac what's connected</button>
+            <div class="small" id="tryOut" style="margin-top:10px"></div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ================= APPEARANCE ================= -->
+    <section class="page" id="page-look">
+      <div class="stack" style="max-width:980px">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+            <h2 style="margin:0">Theme gallery</h2>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <label class="btn" style="cursor:pointer">Import a theme file<input type="file" id="importFile" accept=".json,application/json" hidden></label>
+            </div>
+          </div>
+          <p class="muted small">Click a theme to use it. Themes are tiny files anyone can make and share, like Obsidian themes. They can only change colours, fonts and corners, never run code, so any theme is safe.</p>
+          <div class="gallery" id="gallery"></div>
+          <div class="error" id="themeErr" style="margin-top:8px"></div>
+        </div>
+
+        <div class="card">
+          <h2>Make your own theme</h2>
+          <p class="muted small" style="margin-top:0">Change anything below and watch the app change as you go. Then download it to share, or save it to your gallery.</p>
+          <div class="maker">
+            <label>Name<input type="text" id="tName" value="My theme" maxlength="40"></label>
+            <label>Made by<input type="text" id="tAuthor" placeholder="Your name" maxlength="40"></label>
+            <label>Light or dark<select id="tMode"><option value="light">Light</option><option value="dark">Dark</option></select></label>
+            <label>Font<select id="tFont"><option value="system">Clean (system)</option><option value="serif">Book (serif)</option><option value="rounded">Friendly (rounded)</option><option value="mono">Typewriter (mono)</option><option value="verdana">Easy to read (Verdana)</option></select></label>
+            <label>Main colour<input type="color" id="c-accent"></label>
+            <label>Page<input type="color" id="c-background"></label>
+            <label>Cards<input type="color" id="c-panel"></label>
+            <label>Text<input type="color" id="c-text"></label>
+            <label>Quiet text<input type="color" id="c-muted"></label>
+            <label>Borders<input type="color" id="c-line"></label>
+            <label>Corners<input type="range" id="tRadius" min="0" max="28" style="width:100%"></label>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+            <button class="btn primary" id="tSave">Save to my gallery</button>
+            <button class="btn" id="tDownload">Download theme file</button>
+            <button class="btn" id="tFromCurrent">Start from the current theme</button>
+          </div>
+          <p class="muted small" style="margin-bottom:0">To add a theme for good, put its file in the <b>themes</b> folder of the project. To share it, send the file or add it on GitHub.</p>
+        </div>
+
+        <div class="card">
+          <h2>Comfort</h2>
+          <div class="setrow"><div><b>Text size</b><div class="muted small" id="sizeLabel"></div></div>
+            <input type="range" id="size" min="14" max="23" step="1"></div>
+          <div class="setrow"><div><b>Easy-read mode</b><div class="muted small">More space between letters, words and lines, with a clearer font. Helpful for dyslexia. Works with any theme.</div></div>
+            <label class="switch"><input type="checkbox" id="easy" aria-label="Easy-read mode"><span></span></label></div>
+          <div class="setrow" id="defaultOnly"><div><b>Quick colour</b><div class="muted small">For the Default theme.</div></div>
+            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div class="swatches" id="swatches"></div>
+            <div class="seg" id="modeSeg"><button data-v="auto">Auto</button><button data-v="light">Light</button><button data-v="dark">Dark</button></div></div></div>
+          <p class="muted small" style="margin-bottom:0">Your look is saved by your browser on this laptop. It's only about how things look, never your notes.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+  <div class="viewer" id="modelPanel" hidden role="dialog" aria-modal="true" aria-label="Choose the AI model">
+    <div class="panel" style="max-width:640px;width:96vw">
+      <div class="bar"><b>Choose the AI model</b><button class="btn primary" id="modelClose">Close</button></div>
+      <div style="padding:16px;overflow:auto" id="modelList"></div>
+    </div>
+  </div>
+  <div class="viewer" id="viewer" hidden role="dialog" aria-modal="true" aria-label="Photo viewer">
+    <div class="panel">
+      <div class="bar"><b id="viewerTitle">Photo</b>
+        <span style="display:flex;gap:8px"><button class="btn" id="viewerCopy">Copy all text</button><button class="btn primary" id="viewerClose">Close</button></span></div>
+      <div class="stage"><div class="pic" id="viewerPic"></div></div>
+      <div class="foot" id="viewerFoot">Select words on the photo to copy them. Yellow shows words that match your question. Read on this laptop, never saved.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- Secret key for this launch ---------- */
+const TOKEN = new URLSearchParams(location.hash.slice(1)).get("k") || "";
+history.replaceState(null, "", location.pathname);
+const H = { "Content-Type": "application/json", "X-Second-Brain": TOKEN };
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const KIND_ICON = { "note": "📝", "action list": "☑️", "calendar": "📅", "saved link": "🔗", "screenshot or photo": "📸", "Word document": "📄", "Excel spreadsheet": "📊", "PDF": "📕" };
+const KIND_LABEL = { "note": "Notes", "action list": "Action lists", "calendar": "Calendars", "saved link": "Saved links", "screenshot or photo": "Screenshots & photos", "Word document": "Word documents", "Excel spreadsheet": "Excel spreadsheets", "PDF": "PDFs" };
+const KIND_HELP = {
+  "note": "Meeting notes, drafts, scraps (.md, .txt)",
+  "action list": "Lists of who does what, by when (.csv)",
+  "calendar": "Meetings and reminders (.ics)",
+  "saved link": "Bookmarks you saved (.webloc, .url)",
+  "screenshot or photo": "Screenshots, whiteboard photos. Text is read on this laptop",
+  "Word document": "Word files (.docx), with comments and tracked changes",
+  "Excel spreadsheet": "Excel files (.xlsx), every sheet, with cell comments",
+  "PDF": "PDFs, with sticky notes, highlights and handwriting drawn on them",
+};
+
+async function api(path, body) {
+  const opts = body === undefined ? { headers: H } : { method: "POST", headers: H, body: JSON.stringify(body) };
+  const r = await fetch(path, opts);
+  const data = await r.json().catch(() => ({ error: "Something went wrong." }));
+  if (!r.ok) throw new Error(data.error || "Something went wrong.");
+  return data;
+}
+
+/* ---------- Appearance & themes (saved by the browser; only looks, never notes) ---------- */
+const FONT_STACK = {
+  system: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter, sans-serif',
+  serif: '"New York", "Iowan Old Style", Charter, Georgia, serif',
+  rounded: 'ui-rounded, "SF Pro Rounded", Nunito, "Arial Rounded MT Bold", system-ui, sans-serif',
+  mono: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
+  verdana: 'Verdana, "Trebuchet MS", sans-serif',
+};
+const THEME_VARS = ["--a", "--a-soft", "--a-ink", "--a-text", "--bg", "--panel", "--sunk", "--text", "--muted", "--line", "--font", "--radius"];
+const LOOK_DEFAULT = { accent: "teal", mode: "auto", size: 17, easy: false, theme: null };
+let look = { ...LOOK_DEFAULT }, myThemes = [], folderThemes = [];
+try { Object.assign(look, JSON.parse(localStorage.getItem("sb-look") || "{}")); } catch {}
+try { myThemes = JSON.parse(localStorage.getItem("sb-my-themes") || "[]"); } catch {}
+const saveLocal = () => { try { localStorage.setItem("sb-look", JSON.stringify(look)); localStorage.setItem("sb-my-themes", JSON.stringify(myThemes)); } catch {} };
+
+function inkFor(hex) {  // white or black text on a colour, whichever reads better
+  const n = parseInt(hex.slice(1), 16), r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255;
+  return (0.299 * r + 0.587 * g + 0.114 * b) > 160 ? "#111111" : "#ffffff";
+}
+function applyLook() {
+  const r = document.documentElement, st = r.style, th = look.theme;
+  THEME_VARS.forEach(v => st.removeProperty(v));
+  r.dataset.easy = look.easy ? "1" : "0";
+  st.setProperty("--fs", look.size + "px");
+  if (th) {
+    const c = th.colors, dark = th.mode === "dark";
+    r.dataset.mode = th.mode; r.dataset.accent = "custom";
+    st.setProperty("--a", c.accent); st.setProperty("--a-ink", inkFor(c.accent));
+    st.setProperty("--a-soft", `color-mix(in srgb, ${c.accent} ${dark ? 24 : 14}%, ${c.panel})`);
+    st.setProperty("--a-text", dark ? `color-mix(in srgb, ${c.accent} 65%, #ffffff)` : c.accent);
+    st.setProperty("--bg", c.background); st.setProperty("--panel", c.panel);
+    st.setProperty("--sunk", `color-mix(in srgb, ${c.background} 60%, ${c.panel})`);
+    st.setProperty("--text", c.text); st.setProperty("--muted", c.muted); st.setProperty("--line", c.line);
+    st.setProperty("--radius", th.radius + "px");
+    if (!look.easy) st.setProperty("--font", FONT_STACK[th.font] || FONT_STACK.system);
+  } else {
+    r.dataset.accent = look.accent; r.dataset.mode = look.mode;
+  }
+  saveLocal();
+  document.querySelectorAll("#swatches .sw").forEach(s => s.classList.toggle("on", !th && s.dataset.v === look.accent));
+  document.querySelectorAll("#modeSeg button").forEach(b => b.classList.toggle("on", !th && b.dataset.v === look.mode));
+  $("size").value = look.size; $("sizeLabel").textContent = look.size + " point"; $("easy").checked = look.easy;
+  renderGallery();
+}
+const SW = { teal: "#0f7a61", indigo: "#4f46c8", rose: "#c2335f", amber: "#b45c06", ocean: "#0b6aa8", graphite: "#3d3d3a" };
+$("swatches").innerHTML = Object.entries(SW).map(([k, c]) => `<button class="sw" data-v="${k}" style="background:${c}" aria-label="${k}" title="${k}"></button>`).join("");
+document.querySelectorAll("#swatches .sw").forEach(b => b.onclick = () => { look.theme = null; look.accent = b.dataset.v; applyLook(); });
+document.querySelectorAll("#modeSeg button").forEach(b => b.onclick = () => { look.theme = null; look.mode = b.dataset.v; applyLook(); });
+$("size").oninput = e => { look.size = +e.target.value; applyLook(); };
+$("easy").onchange = e => { look.easy = e.target.checked; applyLook(); };
+
+function preview(th) {
+  if (!th) return `<div class="tprev" style="background:#f6f5f1"><div class="p" style="background:#fff;border:1px solid #e6e3db"><div class="l" style="background:#1d1d1b;width:70%"></div><div class="l" style="background:#b8b6ae;width:90%"></div></div><div class="b" style="background:${SW[look.accent] || SW.teal}"></div></div>`;
+  const c = th.colors;
+  return `<div class="tprev" style="background:${c.background};border-radius:${Math.min(th.radius, 14)}px">
+    <div class="p" style="background:${c.panel};border:1px solid ${c.line};border-radius:${Math.min(th.radius, 10)}px">
+      <div class="l" style="background:${c.text};width:70%"></div><div class="l" style="background:${c.muted};width:90%"></div></div>
+    <div class="b" style="background:${c.accent}"></div></div>`;
+}
+function renderGallery() {
+  if (!$("gallery")) return;
+  const cur = look.theme ? look.theme.name : null;
+  const all = [{ th: null, label: "Default", by: "Codicilix", src: "built-in" }]
+    .concat(folderThemes.map(th => ({ th, label: th.name, by: th.author, src: "themes folder" })))
+    .concat(myThemes.map((th, i) => ({ th, label: th.name, by: th.author, src: "yours", i })));
+  $("gallery").innerHTML = all.map((x, n) => `<div class="tcard ${(x.th ? x.th.name === cur : !cur) ? "on" : ""}" data-n="${n}" role="button" tabindex="0" aria-label="Use theme ${esc(x.label)}">
+      ${preview(x.th)}<div class="tname">${esc(x.label)}</div><div class="tby">${esc(x.by || "")}${x.by ? " · " : ""}${x.src}</div>
+      ${x.src === "yours" ? `<button class="tdel" data-i="${x.i}" title="Remove from my gallery" aria-label="Remove">×</button>` : ""}</div>`).join("");
+  $("gallery").querySelectorAll(".tcard").forEach(el => {
+    const use = () => { const x = all[+el.dataset.n]; look.theme = x.th; applyLook(); if (x.th) fillMaker(x.th); };
+    el.onclick = e => { if (!e.target.classList.contains("tdel")) use(); };
+    el.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); use(); } };
+  });
+  $("gallery").querySelectorAll(".tdel").forEach(b => b.onclick = () => { myThemes.splice(+b.dataset.i, 1); saveLocal(); renderGallery(); });
+}
+
+const COLOR_KEYS = ["accent", "background", "panel", "text", "muted", "line"];
+function fillMaker(th) {
+  $("tName").value = th.name; $("tAuthor").value = th.author || ""; $("tMode").value = th.mode;
+  $("tFont").value = th.font; $("tRadius").value = th.radius;
+  COLOR_KEYS.forEach(k => $("c-" + k).value = th.colors[k]);
+}
+function readMaker() {
+  return { name: $("tName").value.trim() || "My theme", author: $("tAuthor").value.trim(), mode: $("tMode").value,
+    font: $("tFont").value, radius: +$("tRadius").value,
+    colors: Object.fromEntries(COLOR_KEYS.map(k => [k, $("c-" + k).value])) };
+}
+function currentAsTheme() {
+  if (look.theme) return { ...look.theme, colors: { ...look.theme.colors } };
+  const cs = getComputedStyle(document.documentElement);
+  const toHex = v => { const c = document.createElement("canvas").getContext("2d"); c.fillStyle = v.trim(); return c.fillStyle; };
+  const dark = document.documentElement.dataset.mode === "dark" || (look.mode === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
+  return { name: "My theme", author: "", mode: dark ? "dark" : "light", font: "system", radius: 14,
+    colors: { accent: toHex(cs.getPropertyValue("--a")), background: toHex(cs.getPropertyValue("--bg")), panel: toHex(cs.getPropertyValue("--panel")),
+      text: toHex(cs.getPropertyValue("--text")), muted: toHex(cs.getPropertyValue("--muted")), line: toHex(cs.getPropertyValue("--line")) } };
+}
+async function checkTheme(data) {
+  const r = await fetch("/api/theme-check", { method: "POST", headers: H, body: JSON.stringify(data) });
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error || "That theme isn't valid.");
+  return d.theme;
+}
+document.querySelectorAll(".maker input, .maker select").forEach(el => el.addEventListener("input", () => {
+  look.theme = { ...readMaker(), live: true }; applyLook();
+}));
+$("tFromCurrent").onclick = () => fillMaker(currentAsTheme());
+$("tSave").onclick = async () => {
+  $("themeErr").textContent = "";
+  try { const th = await checkTheme(readMaker());
+    myThemes = myThemes.filter(x => x.name !== th.name).concat([th]); look.theme = th; applyLook();
+  } catch (e) { $("themeErr").textContent = e.message; }
+};
+$("tDownload").onclick = async () => {
+  $("themeErr").textContent = "";
+  try { const th = await checkTheme(readMaker());
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(th, null, 2) + "\n"], { type: "application/json" }));
+    a.download = th.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + ".json"; a.click();
+  } catch (e) { $("themeErr").textContent = e.message; }
+};
+$("importFile").onchange = e => {
+  const file = e.target.files[0]; e.target.value = "";
+  $("themeErr").textContent = "";
+  if (!file) return;
+  if (file.size > 8192) { $("themeErr").textContent = "That file is too big to be a theme."; return; }
+  const reader = new FileReader();  // read on this laptop; nothing is uploaded anywhere
+  reader.onload = async () => {
+    try { const th = await checkTheme(JSON.parse(reader.result));
+      myThemes = myThemes.filter(x => x.name !== th.name).concat([th]); look.theme = th; applyLook(); fillMaker(th);
+    } catch (err) { $("themeErr").textContent = err instanceof SyntaxError ? "That file isn't a theme (it isn't valid JSON)." : err.message; }
+  };
+  reader.readAsText(file);
+};
+async function loadThemes() {
+  try { const d = await api("/api/themes"); folderThemes = d.themes;
+    if (d.problems.length) $("themeErr").textContent = "Skipped some theme files: " + d.problems.join("; ");
+  } catch {}
+  renderGallery();
+}
+fillMaker(look.theme || { name: "My theme", author: "", mode: "light", font: "system", radius: 14,
+  colors: { accent: "#0f7a61", background: "#f6f5f1", panel: "#ffffff", text: "#1d1d1b", muted: "#6b6a64", line: "#e6e3db" } });
+applyLook();
+
+/* ---------- Pages ---------- */
+const TITLES = { ask: "Ask", meetings: "Meetings", folders: "Folders & access", checkup: "Check-up", look: "Appearance & themes" };
+function show(page) {
+  document.querySelectorAll(".page").forEach(p => p.classList.toggle("on", p.id === "page-" + page));
+  document.querySelectorAll(".navbtn").forEach(b => b.classList.toggle("on", b.dataset.page === page));
+  $("pageTitle").textContent = TITLES[page];
+  if (page === "meetings") loadMeetings();
+  if (page === "folders") loadState();
+  if (page === "checkup") loadLive();
+  if (page === "look") loadThemes();
+}
+document.querySelectorAll(".navbtn").forEach(b => b.onclick = () => show(b.dataset.page));
+$("shield").onclick = () => show("checkup");
+
+const h = new Date().getHours();
+$("greeting").textContent = h < 12 ? "Good morning." : h < 18 ? "Good afternoon." : "Good evening.";
+
+/* ---------- State: model, folders, kinds, next meeting ---------- */
+let nextMeeting = null;
+async function loadState() {
+  const s = await api("/api/state");
+  $("todayPill").hidden = !s.demo_date;
+  if (s.demo_date) $("todayPill").textContent = `📅 Today: ${s.today_label} (demo date)`;
+  $("demoCard").hidden = !s.demo_available;
+  $("demoSwitch").checked = s.demo_date;
+  $("privateSwitch").checked = !!s.private_open;
+  $("demoText").textContent = s.demo_date
+    ? "On: using the sample notes, and today is 5 Jan 2027. Turn off to use your own notes and the real date."
+    : "Off: using your own notes and today's real date. Add your folders below.";
+  const ms = s.model_status, pill = $("modelPill");
+  if (!ms.running) { pill.className = "pill bad"; pill.textContent = "AI model not running · open Ollama"; }
+  else if (!ms.model_ready) { pill.className = "pill warn"; pill.textContent = `Model ${s.model} not downloaded`; }
+  else { pill.className = "pill plain"; pill.textContent = `AI: ${s.model} · local ▾`; }
+
+  $("folders").innerHTML = s.compartments.map(c => `
+    <div class="folder ${c.enabled ? "" : "off"}">
+      <div class="ficon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+      <div style="flex:1;min-width:0"><b>${esc(c.name)}</b> <span class="muted small">${c.enabled ? "on" : "off · never opened"}</span>
+        <div class="muted small" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc((c.file_list || []).join("\n") || c.location || "")}">${esc(c.location || "")}</div>
+        <div class="chips">${Object.entries(c.kinds).map(([k, n]) => `<span class="tag">${KIND_ICON[k] || ""} ${n} ${esc(n > 1 ? (k === "screenshot or photo" ? "screenshots or photos" : k + "s") : k)}</span>`).join("")}</div></div>
+      ${c.added ? `<button class="btn small" data-remove="${esc(c.name)}" title="Stop using this. Your files stay where they are." style="padding:4px 10px">Remove</button>` : ""}
+      <label class="switch"><input type="checkbox" data-name="${esc(c.name)}" ${c.enabled ? "checked" : ""} aria-label="Let me see ${esc(c.name)}"><span></span></label>
+    </div>`).join("");
+  document.querySelectorAll("#folders [data-remove]").forEach(b => b.onclick = async () => {
+    await api("/api/compartment", { action: "remove", name: b.dataset.remove });
+    saveAdded(loadAdded().filter(x => x.name !== b.dataset.remove)); loadState();
+  });
+  document.querySelectorAll("#folders input").forEach(i => i.onchange = async () => {
+    await api("/api/compartment", { action: "toggle", name: i.dataset.name, enabled: i.checked }); loadState();
+  });
+
+  $("kinds").innerHTML = s.kinds.map(k => `
+    <div class="kind"><div><b>${KIND_ICON[k.kind] || ""} ${esc(KIND_LABEL[k.kind] || k.kind)}</b>
+      <div class="muted small">${esc(KIND_HELP[k.kind] || "")}</div></div>
+      <label class="switch"><input type="checkbox" data-kind="${esc(k.kind)}" ${k.enabled ? "checked" : ""} aria-label="Allow ${esc(KIND_LABEL[k.kind] || k.kind)}"><span></span></label></div>`).join("");
+  document.querySelectorAll("#kinds input").forEach(i => i.onchange = async () => {
+    await api("/api/kind", { kind: i.dataset.kind, enabled: i.checked }); loadState();
+  });
+  $("reader").textContent = s.image_reader
+    ? `Screenshots are read by: ${s.image_reader}. Nothing goes online.`
+    : "No on-device text reader found, so screenshots are skipped. Run scripts/make-mac-app.sh to set it up.";
+
+  nextMeeting = s.next_meeting;
+  $("nextCard").hidden = !nextMeeting;
+  if (nextMeeting) { $("nextTitle").textContent = nextMeeting.title; $("nextWhen").textContent = nextMeeting.date; }
+}
+
+/* ---------- Answers ---------- */
+function tidyAnswer(text) {
+  const out = [];
+  let bullets = 0, capped = false;
+  for (let raw of text.split("\n")) {
+    raw = raw.replace(/^\s*[=#*]{2,}\s*|\s*[=#*]{2,}\s*$/g, "");     // "=== What's new ===" -> "What's new"
+    if (/^(what['’]s new|ask about)\s*:?\s*$/i.test(raw.trim())) { raw = raw.trim().replace(/:?$/, ":"); bullets = 0; capped = true; }
+    if (capped && /^\s*[-*•]\s/.test(raw)) { bullets++; if (bullets > 3) continue; }
+    const line = raw.trim();
+    if (/^(\[?\d+\]?[\s,]*)+$/.test(line) && out.length) {          // a line that is only source numbers
+      const nums = line.match(/\d+/g).map(n => `[${n}]`).join("");
+      for (let i = out.length - 1; i >= 0; i--) { if (out[i].trim() && !/:\s*$/.test(out[i].trim())) { out[i] = out[i].replace(/\s*$/, " " + nums); break; } }
+      continue;
+    }
+    if (/^[-*•\s]*then:?\s*$/i.test(line) || /^[-*•\s]*after the four headings:?\s*$/i.test(line)) continue;
+    out.push(raw);
+  }
+  return out.join("\n");
+}
+function renderAnswerText(text) {
+  text = tidyAnswer(text);
+  let html = "", inList = false, warn = [], miss = [], section = "main";
+  for (const raw of text.split("\n")) {
+    const line = raw.trim();
+    if (!line) continue;
+    const plain = line.replace(/^[-*•#\d.\s\[]+(?=[A-Za-z])/, "").replace(/\*\*/g, "").replace(/^(Watch out|Not in your notes):?\]\s*/i, "$1: ");
+    if (/^(since last time|last time|open actions|follow up|what has changed|what to follow up on|what's new|what’s new|ask about)[^:]{0,20}:\s*$/i.test(plain)) {
+      section = "main"; if (inList) { html += "</ul>"; inList = false; }
+      html += `<p style="margin-top:12px"><b>${esc(plain)}</b></p>`; continue;
+    }
+    if (/^watch out:?/i.test(plain)) { section = "warn"; const r = plain.replace(/^watch out:?\s*/i, ""); if (r) warn.push(r); continue; }
+    if (/^not in your notes:?/i.test(plain)) { section = "miss"; const r = plain.replace(/^not in your notes:?\s*/i, ""); if (r) miss.push(r); continue; }
+    if (section === "warn") { warn.push(plain); continue; }
+    if (section === "miss") { miss.push(plain); continue; }
+    const content = esc(line.replace(/^[-*•]\s*/, "").replace(/\*\*(.+?)\*\*/g, "$1"));
+    if (/^[-*•]\s/.test(line)) { if (!inList) { html += "<ul>"; inList = true; } html += `<li>${content}</li>`; }
+    else { if (inList) { html += "</ul>"; inList = false; } html += `<p>${content}</p>`; }
+  }
+  if (inList) html += "</ul>";
+  const cites = s => s.replace(/\[(\d+)\]/g, '<button class="cite" data-n="$1" title="Show source $1">$1</button>');
+  let out = cites(html);
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  if (warn.length) out += `<p class="noteline warnline">⚠️ ${cites(esc(cap(warn.join(" "))))}</p>`;
+  if (miss.length) out += `<p class="noteline">❔ Not in your notes: ${cites(esc(miss.join(" ")))}</p>`;
+  return out;
+}
+function confidencePill(level) {
+  if (level === "high") return '<span class="pill">Confidence: high</span>';
+  if (level === "medium") return '<span class="pill warn">Confidence: medium</span>';
+  if (level === "none") return '<span class="pill warn">Not found</span>';
+  return '<span class="pill bad">Confidence: low</span>';
+}
+function sourceCard(s, id) {
+  const age = s.age_days == null ? "" : s.age_days === 0 ? " · today" : s.age_days > 0 ? ` · ${s.age_days} day${s.age_days === 1 ? "" : "s"} ago` : ` · in ${-s.age_days} day${s.age_days === -1 ? "" : "s"}`;
+  const flags = s.flags.map(f => `<span class="tag flag">${esc(f)}</span>`).join("");
+  return `<div class="src ${s.used ? "used" : ""}" id="${id}-src-${s.n}">
+    <div class="meta"><span class="cite" style="cursor:default">${s.n}</span><b>${esc(s.file)}</b>
+      <span class="tag">${KIND_ICON[s.kind] || ""} ${esc(s.kind)}</span>${flags}</div>
+    <div class="muted small">${esc(s.date_label)}${age} · date from ${esc(s.date_source)} · ${s.used ? "used in the answer" : "found, not used"}</div>
+    ${s.kind === "screenshot or photo" ? `<button class="btn" style="margin-top:8px" data-view-file="${s.paste_id ? "" : esc(s.file)}" data-view-paste="${esc(s.paste_id || "")}" data-view-name="${esc(s.file.split("/").pop())}">🔍 View photo</button>` : ""}
+    <pre>${esc(s.text)}</pre></div>`;
+}
+
+/* ---------- Pictures: paste, drop or attach (kept in memory only) ---------- */
+const attachments = [];
+const STOP_WORDS = new Set("the and for what when where which who why how does did was were are this that with from have has about into your you my our they them their its can could would should will just like any some all not but out over".split(" "));
+function renderThumbs() {
+  const box = $("thumbs");
+  box.hidden = !attachments.length;
+  box.innerHTML = attachments.map((im, i) => `<div class="thumb" title="${esc(im.name)}"><img src="${im.data}" alt="${esc(im.name)}"><button data-i="${i}" aria-label="Remove picture">×</button></div>`).join("");
+  box.querySelectorAll("button").forEach(b => b.onclick = () => { attachments.splice(+b.dataset.i, 1); renderThumbs(); });
+}
+function addFiles(files) {
+  for (const f of files) {
+    if (!f.type.startsWith("image/") || attachments.length >= 3) continue;
+    if (f.size > 12 * 1024 * 1024) { alertBox("That picture is too big (over 12 MB)."); continue; }
+    const reader = new FileReader();  // read on this laptop; it only goes to Codicilix, which runs here
+    reader.onload = () => { attachments.push({ name: f.name && f.name !== "image.png" ? f.name : `pasted picture ${attachments.length + 1}`, data: reader.result }); renderThumbs(); };
+    reader.readAsDataURL(f);
+  }
+}
+function alertBox(msg) { const m = $("thumbs"); m.hidden = false; m.insertAdjacentHTML("beforeend", `<span class="error">${esc(msg)}</span>`); }
+$("clipBtn").onclick = () => $("clipFile").click();
+$("clipFile").onchange = e => { addFiles(e.target.files); e.target.value = ""; };
+document.addEventListener("paste", e => {
+  if (!document.getElementById("page-ask").classList.contains("on")) return;
+  const files = [...(e.clipboardData?.items || [])].filter(i => i.kind === "file").map(i => i.getAsFile()).filter(Boolean);
+  if (files.length) { e.preventDefault(); addFiles(files); }
+});
+const comp = $("composer");
+["dragenter", "dragover"].forEach(ev => comp.addEventListener(ev, e => { e.preventDefault(); comp.classList.add("drag"); }));
+["dragleave", "drop"].forEach(ev => comp.addEventListener(ev, e => { e.preventDefault(); comp.classList.remove("drag"); }));
+comp.addEventListener("drop", e => addFiles(e.dataTransfer.files));
+
+/* ---------- Photo viewer: select text on the photo, highlight matches (like Google Lens) ---------- */
+let viewerText = "", viewerUrl = null;
+async function openViewer({ file, paste, name, terms }) {
+  const qs = paste ? `paste=${encodeURIComponent(paste)}` : `f=${encodeURIComponent(file)}`;
+  $("viewerTitle").textContent = name || "Photo";
+  $("viewerPic").innerHTML = '<span class="thinking"><span class="spin"></span>Loading…</span>';
+  $("viewer").hidden = false;
+  try {
+    const [imgRes, layout] = await Promise.all([fetch(`/api/image?${qs}`, { headers: H }), api(`/api/image-layout?${qs}`)]);
+    if (!imgRes.ok) throw new Error((await imgRes.json().catch(() => ({}))).error || "Couldn't open that picture.");
+    const blob = await imgRes.blob();
+    if (viewerUrl) URL.revokeObjectURL(viewerUrl);
+    viewerUrl = URL.createObjectURL(blob);
+    viewerText = layout.text || "";
+    const norm = w => w.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const want = (terms || []).map(norm).filter(w => w.length >= 3);
+    // Handwriting is often read slightly wrong, so close spellings count too ("Sprnt" for "sprint").
+    const alike = (a, b) => {
+      if (Math.abs(a.length - b.length) > 2 || Math.min(a.length, b.length) < 4) return false;
+      const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+      for (let j = 1; j <= b.length; j++) d[0][j] = j;
+      for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++)
+        d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      return d[a.length][b.length] <= (Math.max(a.length, b.length) >= 8 ? 2 : 1);
+    };
+    const hit = w => { const n = norm(w); return n.length >= 3 && want.some(t => n === t || n.startsWith(t) || t.startsWith(n) && n.length >= 4 || alike(n, t)); };
+    const img = new Image();
+    img.alt = name || "Photo";
+    img.onload = () => {
+      const words = layout.words || [];
+      const layer = words.map(w => `<span class="ocrword${hit(w.t) ? " hl" : ""}" style="left:${w.x * 100}%;top:${w.y * 100}%;width:${w.w * 100}%;height:${w.h * 100}%;font-size:${Math.max(8, w.h * img.clientHeight * 0.85)}px">${esc(w.t)} </span>`).join("");
+      $("viewerPic").innerHTML = "";
+      $("viewerPic").append(img);
+      $("viewerPic").insertAdjacentHTML("beforeend", layer);
+      const n = words.filter(w => hit(w.t)).length;
+      $("viewerFoot").textContent = words.length
+        ? `Select words on the photo to copy them.${n ? ` ${n === 1 ? "1 word in yellow matches" : n + " words in yellow match"} your question.` : ""} Read on this laptop, never saved.`
+        : "No word positions for this picture, but you can still read it here. Read on this laptop, never saved.";
+    };
+    img.onerror = () => { $("viewerPic").innerHTML = `<p class="muted" style="line-height:1.6;padding:20px">This picture's format can't be shown in the window (HEIC photos, for example). Its text is below.</p><pre style="line-height:1.5;padding:0 20px 20px;white-space:pre-wrap">${esc(viewerText)}</pre>`; };
+    img.src = viewerUrl;
+  } catch (e) { $("viewerPic").innerHTML = `<p class="error" style="padding:20px;line-height:1.6">${esc(e.message)}</p>`; }
+}
+function closeViewer() { $("viewer").hidden = true; $("viewerPic").innerHTML = ""; if (viewerUrl) { URL.revokeObjectURL(viewerUrl); viewerUrl = null; } }
+$("viewerClose").onclick = closeViewer;
+$("viewer").onclick = e => { if (e.target.id === "viewer") closeViewer(); };
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("viewer").hidden) closeViewer(); });
+$("viewerCopy").onclick = async () => {
+  try { await navigator.clipboard.writeText(viewerText); $("viewerCopy").textContent = "Copied ✓"; setTimeout(() => $("viewerCopy").textContent = "Copy all text", 1500); } catch {}
+};
+
+function picTile(src, file) {
+  const name = file.split("/").pop();
+  return `<button class="pictile" data-view-file="${esc(src.file || "")}" data-view-paste="${esc(src.paste || "")}" data-view-name="${esc(name)}" title="Look closer">
+    <img data-src="/api/image?${src.paste ? "paste=" + encodeURIComponent(src.paste) : "f=" + encodeURIComponent(src.file)}" alt="${esc(name)}"><span>🔍 ${esc(name)}</span></button>`;
+}
+async function loadTiles(root) {
+  for (const img of root.querySelectorAll("img[data-src]")) {
+    const url = img.dataset.src; img.removeAttribute("data-src");
+    try {
+      const r = await fetch(url, { headers: H });
+      if (!r.ok) throw 0;
+      img.src = URL.createObjectURL(await r.blob());
+      img.onerror = () => img.replaceWith(Object.assign(document.createElement("div"), { className: "nopic", textContent: "📷" }));
+    } catch { img.replaceWith(Object.assign(document.createElement("div"), { className: "nopic", textContent: "📷" })); }
+  }
+}
+
+/* ---------- AI model picker: every model runs on this laptop ---------- */
+async function openModels() {
+  $("modelPanel").hidden = false;
+  $("modelList").innerHTML = '<span class="thinking"><span class="spin"></span>Asking Ollama on this laptop…</span>';
+  const m = await api("/api/models");
+  const row = (name, why, inst, fits) => `<div class="kind" style="align-items:center">
+      <div><b>${esc(name)}</b>${name === m.current ? ' <span class="tag">in use</span>' : ""}${name === m.recommended ? ' <span class="tag">best for your Mac</span>' : ""}
+        <div class="muted small">${esc(why)}${fits ? "" : ` · needs a Mac with more memory than ${m.ram_gb} GB`}</div>
+        ${inst ? "" : `<div class="small" style="margin-top:4px">To install, run in Terminal: <code>ollama pull ${esc(name)}</code></div>`}</div>
+      ${inst ? `<button class="btn ${name === m.current ? "" : "primary"}" data-model="${esc(name)}" ${name === m.current ? "disabled" : ""}>${name === m.current ? "In use" : "Use this"}</button>` : ""}
+    </div>`;
+  $("modelList").innerHTML = `<p class="muted small" style="margin-top:0">Your Mac has ${m.ram_gb} GB of memory. Every model here runs only on this laptop, and is unloaded after each answer.
+      Switching is for this session; to keep a choice, set "model" in config.json (now "${esc(m.setting)}").</p>
+    <div class="kind" style="align-items:center"><div><b>Automatic</b><div class="muted small">Use the best installed model for your Mac</div></div>
+      <button class="btn" data-model="auto">Use automatic</button></div>
+    ${m.models.map(x => row(x.name, x.why, x.installed, x.fits)).join("")}
+    ${m.other_installed.map(n => row(n, "also installed on this laptop", true, true)).join("")}`;
+  $("modelList").querySelectorAll("[data-model]").forEach(b => b.onclick = async () => {
+    try { await api("/api/model", { model: b.dataset.model }); await loadState(); openModels(); }
+    catch (e) { alert(e.message); }
+  });
+}
+$("modelPill").onclick = openModels;
+$("modelClose").onclick = () => { $("modelPanel").hidden = true; };
+$("modelPanel").onclick = e => { if (e.target.id === "modelPanel") $("modelPanel").hidden = true; };
+
+let answerCount = 0;
+async function ask(question, opts = {}) {
+  question = question.trim();
+  const images = attachments.splice(0); renderThumbs();
+  if (!question && !images.length) { $("q").focus(); return; }
+  show("ask");
+  $("hello")?.remove();
+  const id = "a" + (++answerCount);
+  const you = document.createElement("div");
+  you.className = "you";
+  if (images.length) you.innerHTML = `<div class="thumbs">${images.map(im => `<div class="thumb"><img src="${im.data}" alt=""></div>`).join("")}</div>`;
+  you.append(document.createTextNode(question || "What does this picture say?"));
+  if (opts.focus) you.insertAdjacentHTML("beforeend", `<div class="small" style="opacity:.85;margin-top:4px">📷 reading ${esc(opts.focus.split("/").pop())} first</div>`);
+  const card = document.createElement("div");
+  card.className = "card answer"; card.id = id;
+  card.innerHTML = `
+    <div class="head"><span class="who"><span class="dot">✦</span>Codicilix</span>
+      <span style="display:flex;gap:8px;align-items:center"><span class="conf"></span><button class="btn speak" hidden>🔊 Read aloud</button></span></div>
+    <div class="keep"></div>
+    <div class="body"><span class="thinking"><span class="spin"></span>Reading your notes on this laptop…</span></div>
+    <div class="alerts"></div>
+    <div class="keep2"></div>
+    <button class="review" hidden aria-expanded="false">Review more ▾</button>
+    <div class="more" hidden>
+      <div class="codebox"></div>
+      <div class="whybox"></div><div class="srcbox"></div>
+      <div class="muted small foot" style="margin-top:8px"></div>
+    </div>`;
+  $("thread").append(you, card);
+  you.scrollIntoView({ behavior: "smooth", block: "start" });
+  const q = sel => card.querySelector(sel);
+  const openMore = (yes = true) => {
+    q(".more").hidden = !yes;
+    q(".review").setAttribute("aria-expanded", String(yes));
+    q(".review").textContent = yes ? "Hide details ▴" : "Review more ▾ · sources, checks and why";
+  };
+  q(".review").onclick = () => openMore(q(".more").hidden);
+  const addAlert = (icon, html) => q(".alerts").insertAdjacentHTML("beforeend", `<div class="alertline">${icon} ${html}</div>`);
+  $("askBtn").disabled = $("prepBtn").disabled = true;
+  const t0 = performance.now();
+  let text = "", ctx = null;
+
+  const showSources = (sources, open) => {
+    if (!sources.length) { q(".srcbox").innerHTML = ""; return; }
+    const ordered = sources.filter(s => s.used).concat(sources.filter(s => !s.used));
+    q(".srcbox").innerHTML = `<details class="sources" ${open ? "open" : ""}><summary>Show the ${sources.length} notes I looked at</summary>
+      ${ordered.map(s => sourceCard(s, id)).join("")}</details>`;
+  };
+  const highlightTerms = () => {
+    const words = (question || "").toLowerCase().match(/[a-z0-9]{3,}/g) || [];
+    const extra = (ctx && ctx.also_looked_for) || [];
+    const fixed = ((ctx && ctx.spelling) || []).map(s => s.read_as);
+    return [...new Set(words.concat(extra, fixed))].filter(w => !STOP_WORDS.has(w));
+  };
+  const wireViews = () => card.querySelectorAll("[data-view-file], [data-view-paste]").forEach(b => b.onclick = () =>
+    openViewer({ file: b.dataset.viewFile, paste: b.dataset.viewPaste, name: b.dataset.viewName, terms: highlightTerms() }));
+  const wireCites = () => { wireViews(); card.querySelectorAll(".cite[data-n]").forEach(b => b.onclick = () => {
+    openMore(true); const det = q("details.sources"); if (det) det.open = true;
+    const d = q("details.sources"); if (d) d.open = true;
+    const el = $(`${id}-src-${b.dataset.n}`);
+    if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1500); }
+  }); };
+  const handle = ev => {
+    if (ev.type === "start") {
+      ctx = ev;
+      const secs = ((performance.now() - t0) / 1000).toFixed(2);
+      if (ev.changes && ev.changes.length) {
+        q(".codebox").insertAdjacentHTML("afterbegin", `<div class="box changed"><b>🔁 What changed · found by code</b>
+          ${ev.changes.map(c => `<div style="margin-top:6px">${esc(c.text)} ${c.refs.map(n => `<button class="cite" data-n="${n}">${n}</button>`).join("")}</div>`).join("")}</div>`);
+      }
+      if (ev.blocked && ev.blocked.length) {
+        q(".codebox").insertAdjacentHTML("afterbegin", `<div class="box shield"><b>🛡️ Blocked to keep your notes safe · found by code</b>
+          ${ev.blocked.map(b => `<div style="margin-top:6px">I didn't let the AI read <span style="font-weight:650">${esc(b.file.split("/").pop())}</span>${b.lines ? ` (lines ${esc(b.lines)})` : ""}, because it ${esc(b.why.join(", and "))}.
+            <details style="margin-top:4px"><summary style="cursor:pointer" class="small">Show me what was blocked (you can read it, the AI can't)</summary><pre>${esc(b.text)}</pre></details></div>`).join("")}
+          <div class="muted small" style="margin-top:6px">Someone may have hidden this to trick an AI into sharing your notes. Even if it had got through, the AI can't send anything: this app only talks to your laptop.</div></div>`);
+      }
+      if (ev.found) {
+        q(".body").innerHTML = `<span class="thinking"><span class="spin"></span>Found ${ev.sources.length} matching notes in ${secs}s. Writing…</span>`;
+        showSources(ev.sources, false);
+        const pics = ev.sources.filter(s => s.kind === "screenshot or photo").filter((x, i, a) => a.findIndex(y => y.file === x.file) === i);
+        if (pics.length) {
+          q(".keep2").insertAdjacentHTML("afterbegin", `<div class="picbox"><div class="muted small">📷 Pictures used · click one to look closer</div><div class="picrow">${pics.map(s => picTile(s.paste_id ? { paste: s.paste_id } : { file: s.file }, s.file)).join("")}</div></div>`);
+          loadTiles(card);
+        }
+        wireViews();
+        if (ev.brief && ev.brief.new_since.length) q(".keep").insertAdjacentHTML("beforeend",
+          `<div class="box warn" style="background:var(--a-soft);color:var(--text);margin:0 0 10px"><b style="color:var(--a-text)">📌 ${ev.brief.last_meeting ? "New since your last meeting on " + esc(ev.brief.last_meeting) : "What you wrote about them recently"} · found by code</b>`
+          + ev.brief.new_since.filter((x, i, a) => a.findIndex(y => y.file === x.file) === i).map(x => `<div>${KIND_ICON[x.kind] || "📝"} ${esc(x.file)} <span class="muted">· ${esc(x.date)}</span> <button class="cite" data-n="${x.n}">${x.n}</button></div>`).join("") + `</div>`);
+        if (ev.spelling && ev.spelling.length) q(".codebox").insertAdjacentHTML("beforeend", `<div class="box miss"><b>Spelling</b>I matched ${ev.spelling.map(s => `“${esc(s.typed)}” to “${esc(s.read_as)}”`).join(", ")} in your notes.</div>`);
+        if (ev.missing.length) q(".codebox").innerHTML += `<div class="box miss"><b>Checked by code</b>None of your notes mention: ${esc(ev.missing.join(", "))}. Anything about that is only loosely related.</div>`;
+      }
+    } else if (ev.type === "token") {
+      text += ev.text; q(".body").innerHTML = renderAnswerText(text); wireCites();
+    } else if (ev.type === "done") {
+      const b = ctx && ctx.brief;
+      if (b && (b.actions.length || b.last_notes.length)) {
+        let extra = "";
+        if (b.actions.length) extra += `<div style="margin-top:14px"><b>Open actions</b> <span class="muted small">· listed by code</span>`
+          + b.actions.map(a => `<div style="display:flex;gap:8px;align-items:baseline;padding:4px 0">☑️ <span><b>${esc(a.owner)}:</b> ${esc(a.action)} <span class="muted">· due ${esc(a.due)}</span>
+             ${a.overdue ? '<span class="tag flag">overdue</span>' : ""} <button class="cite" data-n="${a.n}">${a.n}</button></span></div>`).join("") + `</div>`;
+        if (b.last_notes.length) extra += `<details style="margin-top:12px"><summary style="cursor:pointer"><b>Last time${b.last_meeting ? " (" + esc(b.last_meeting) + ")" : ""}</b> <span class="muted small">· your own notes</span></summary>`
+          + b.last_notes.map(x => `<ul>${x.points.map(p => `<li>${esc(p)} <button class="cite" data-n="${x.n}">${x.n}</button></li>`).join("")}</ul>`).join("") + `</details>`;
+        q(".keep2").insertAdjacentHTML("afterbegin", `<div class="brief-extra">${extra}</div>`);
+      }
+      q(".conf").innerHTML = confidencePill(ev.confidence);
+      q(".body").innerHTML = ctx && ctx.found ? renderAnswerText(ev.answer) : `<p>${esc(ev.answer)}</p>`;
+      const also = ctx && ctx.also_looked_for && ctx.also_looked_for.length ? `<div class="why"><b>I also looked for:</b> ${esc(ctx.also_looked_for.join(", "))}</div>` : "";
+      q(".whybox").innerHTML = also + `<div class="why"><b>Why:</b> ${esc(ev.confidence_reason)}</div><div class="why"><b>Where this came from:</b> ${esc(ev.explanation)}</div>`;
+      if (ev.sources) showSources(ev.sources, false);
+      q(".foot").textContent = `Answered in ${ev.seconds}s${ev.timing ? " (" + ev.timing + ")" : ""} · nothing saved`;
+      const unsure = ev.confidence === "none" || ev.confidence === "low" || /(not|isn['’]t) in your notes/i.test(ev.answer || "");
+      const used = new Set((ev.sources || []).filter(s => s.used).map(s => s.file));
+      const maybe = ((ctx && ctx.maybe_pictures) || []).filter(m => !used.has(m.file));
+      if (unsure && maybe.length && !opts.focus) {
+        q(".keep2").insertAdjacentHTML("beforeend", `<div class="box maybe"><b>🤔 Did you mean one of these?</b>
+          <div class="muted small" style="margin-bottom:10px">I'm not sure, so here are the photos and screenshots that look closest. Have a look and decide.</div>
+          <div class="picrow">${maybe.map(m => `<div class="maybe-pic">${picTile({ file: m.file }, m.file)}
+            <div class="muted small">${esc(m.date_label)} · looks like: ${esc(m.matched.join(", "))}</div>
+            <button class="btn primary small-btn" data-use="${esc(m.file)}">✓ Yes, use this</button></div>`).join("")}</div></div>`);
+        // Don't show the same picture twice: it's in "Did you mean" now.
+        const offered = new Set(maybe.map(m => m.file));
+        card.querySelectorAll(".picbox .pictile").forEach(tile => { if (offered.has(tile.dataset.viewFile)) tile.remove(); });
+        card.querySelectorAll(".picbox").forEach(bx => { if (!bx.querySelector(".pictile")) bx.remove(); });
+        loadTiles(card);
+        card.querySelectorAll("[data-use]").forEach(b => b.onclick = () => ask(question, { focus: b.dataset.use }));
+      }
+      // Short, plain lines for what matters; everything else is under "Review more".
+      if (ctx && ctx.blocked && ctx.blocked.length)
+        addAlert("🛡️", `I blocked ${ctx.blocked.length === 1 ? "1 file" : ctx.blocked.length + " files"} that tried to give the AI instructions. <a href="#" class="seemore">See why</a>`);
+      for (const c of (ctx && ctx.changes) || []) {
+        addAlert("🔁", esc(c.short));
+      }
+      if (ctx && ctx.private_not_read)
+        addAlert("🔒", `${ctx.private_not_read} private note${ctx.private_not_read > 1 ? "s" : ""} not read. <a href="#" class="goprivate">Switch on private notes</a> if you want them included.`);
+      card.querySelectorAll(".goprivate").forEach(a => a.onclick = e => { e.preventDefault(); show("folders"); });
+      if (ev.no_ai) addAlert("ℹ️", `${esc(ev.no_ai_reason || "The AI couldn't answer.")} So instead, here are the exact lines from your notes.`);
+      card.querySelectorAll(".seemore").forEach(a => a.onclick = e => { e.preventDefault(); openMore(true); });
+      q(".review").hidden = false; openMore(false);
+      q(".speak").hidden = false; wireCites();
+    } else if (ev.type === "error") {
+      q(".body").innerHTML = `<div class="error">${esc(ev.error)}</div>`;
+    }
+  };
+  try {
+    const r = await fetch("/api/ask-stream", { method: "POST", headers: H,
+      body: JSON.stringify({ question, focus: opts.focus || null, images: images.map(im => ({ name: im.name, data: im.data })) }) });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || "Something went wrong."); }
+    const reader = r.body.getReader(), dec = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf("\n")) >= 0) { const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1); if (line) handle(JSON.parse(line)); }
+    }
+  } catch (e) { q(".body").innerHTML = `<div class="error">${esc(e.message)}</div>`; }
+  q(".speak").onclick = () => {
+    const copy = q(".body").cloneNode(true); copy.querySelectorAll(".cite").forEach(c => c.remove());
+    speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(copy.innerText));
+  };
+  $("askBtn").disabled = $("prepBtn").disabled = false;
+  loadSession();
+}
+
+async function loadSession() {
+  const t = await api("/api/trust");
+  $("reads").innerHTML = t.session_reads.length
+    ? t.session_reads.slice(-5).reverse().map(r => `<div style="margin-bottom:6px">“${esc(r.question.slice(0, 48))}${r.question.length > 48 ? "…" : ""}”<br>${r.files.length} files read, then let go</div>`).join("")
+      + (t.images_in_memory ? `<div>Text from ${t.images_in_memory} image${t.images_in_memory > 1 ? "s" : ""} held in memory until you forget.</div>` : "")
+    : "Nothing read yet.";
+  const s = $("shield");
+  s.className = "shield" + (t.guards_on ? "" : " bad");
+  $("shieldText").textContent = t.network.blocked.length
+    ? `Nothing leaves this laptop · ${t.network.blocked.length} outside attempt${t.network.blocked.length > 1 ? "s" : ""} blocked`
+    : "Nothing leaves this laptop";
+  return t;
+}
+
+$("askBtn").onclick = () => { const v = $("q").value; $("q").value = ""; ask(v); };  // a picture alone is fine too
+$("q").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("askBtn").click(); } });
+$("prepBtn").onclick = () => nextMeeting && ask(nextMeeting.question);
+document.querySelectorAll(".quick button[data-q]").forEach(b => b.onclick = () => ask(b.dataset.q));
+$("forgetBtn").onclick = async () => {
+  await api("/api/forget", {});
+  $("thread").innerHTML = '<div class="hello" id="hello"><h1>Forgotten.</h1><p class="muted">Nothing from this session is kept anywhere.</p></div>';
+  loadSession();
+};
+
+/* ---------- Meetings ---------- */
+function meetCard(m) {
+  const d = new Date(m.date + "T12:00");
+  const rel = m.days === 0 ? "today" : m.days === 1 ? "tomorrow" : m.days > 0 ? `in ${m.days} days` : m.days === -1 ? "yesterday" : `${-m.days} days ago`;
+  return `<div class="card meet">
+    <div class="cal"><div class="m">${d.toLocaleString("en-GB", { month: "short" })}</div><div class="d">${d.getDate()}</div></div>
+    <div style="flex:1;min-width:0">
+      <div class="title">${esc(m.title)}</div>
+      <div class="muted small">${esc(m.when)} · ${rel}</div>
+      ${m.related.length ? `<ul class="rel">${m.related.map(r => `<li><span class="k">${KIND_ICON[r.kind] || "📝"}</span><span><b>${esc(r.file.split("/").pop())}</b> <span class="muted">· ${esc(r.date)} · ${esc(r.why)}</span></span></li>`).join("")}</ul>` : `<div class="muted small" style="margin-top:6px">No notes linked yet.</div>`}
+      <button class="btn ${m.days >= 0 ? "primary" : ""}" style="margin-top:10px" data-q="${esc(m.question)}">${m.days >= 0 ? "Prepare me" : "Recap"}</button>
+    </div></div>`;
+}
+async function loadMeetings() {
+  const m = await api("/api/meetings");
+  $("upcoming").innerHTML = m.upcoming.map(meetCard).join("") || '<p class="muted">No upcoming meetings in your calendar files.</p>';
+  $("past").innerHTML = m.past.map(meetCard).join("") || '<p class="muted">No past meetings found.</p>';
+  $("upCount").textContent = m.upcoming.length ? `(${m.upcoming.length})` : "";
+  $("pastCount").textContent = m.past.length ? `(${m.past.length})` : "";
+  document.querySelectorAll("#page-meetings button[data-q]").forEach(b => b.onclick = () => ask(b.dataset.q));
+}
+
+/* ---------- Folders: pick with the Mac's own picker; remember locations only ---------- */
+function loadAdded() { try { return JSON.parse(localStorage.getItem("sb-added") || "[]"); } catch { return []; } }
+function saveAdded(list) { try { localStorage.setItem("sb-added", JSON.stringify(list)); } catch {} }
+async function addSource(src, remember = true) {
+  const r = await api("/api/compartment", src.files ? { action: "add_files", name: src.name || "", files: src.files }
+                                                    : { action: "add", name: src.name || "", path: src.path });
+  if (remember) saveAdded(loadAdded().concat([{ ...src, name: r.name }]));
+  return r.name;
+}
+async function pickAndAdd(what) {
+  const msg = $("addMsg");
+  msg.className = "small muted"; msg.textContent = "A window has opened on your Mac. Choose " + (what === "folder" ? "a folder." : "one or more files.");
+  try {
+    const r = await api("/api/pick", { what });
+    if (!r.paths.length) { msg.textContent = r.cancelled ? "Nothing chosen." : "Nothing chosen."; return; }
+    const name = await addSource(what === "folder" ? { path: r.paths[0] } : { files: r.paths });
+    msg.className = "small"; msg.style.color = "var(--good)";
+    msg.textContent = `✓ Added “${name}”. It's switched on, and I'll remember it next time.`;
+    loadState();
+  } catch (e) { msg.className = "error"; msg.textContent = e.message; }
+}
+$("pickFolder").onclick = () => pickAndAdd("folder");
+$("pickFiles").onclick = () => pickAndAdd("files");
+$("addBtn").onclick = async () => {
+  const msg = $("addMsg");
+  try { const name = await addSource({ path: $("addPath").value }); $("addPath").value = "";
+    msg.className = "small"; msg.style.color = "var(--good)"; msg.textContent = `✓ Added “${name}”.`; loadState(); }
+  catch (e) { msg.className = "error"; msg.textContent = e.message; }
+};
+// After a restart, put back what the user added before (only locations are remembered).
+async function restoreAdded() {
+  const s = await api("/api/state");
+  const have = new Set(s.compartments.map(c => c.name));
+  const keep = [];
+  for (const src of loadAdded()) {
+    if (have.has(src.name)) { keep.push(src); continue; }
+    try { const name = await addSource(src, false); keep.push({ ...src, name }); } catch {}
+  }
+  saveAdded(keep);
+}
+
+$("privateSwitch").onchange = async () => { await api("/api/private", { open: $("privateSwitch").checked }); loadState(); };
+$("demoSwitch").onchange = async () => {
+  await api("/api/demo", { on: $("demoSwitch").checked });
+  try { localStorage.setItem("sb-demo", $("demoSwitch").checked ? "on" : "off"); } catch {}
+  loadState();
+};
+// Keep the user's choice of demo mode after a restart.
+async function restoreDemo() {
+  let pref = null; try { pref = localStorage.getItem("sb-demo"); } catch {}
+  if (pref === "off") await api("/api/demo", { on: false });
+}
+
+/* ---------- Check-up ---------- */
+async function loadLive() {
+  const t = await loadSession();
+  const allowed = Object.entries(t.network.allowed);
+  const row = (ok, title, d) => `<div class="res"><div class="tick ${ok ? "" : "warn"}">${ok ? "✓" : "!"}</div><div><div class="t">${title}</div><div class="d">${d}</div></div></div>`;
+  $("live").innerHTML =
+    row(t.guards_on, "Guards on", allowed.length ? `Only talked to this laptop: ${allowed.map(([k, v]) => `${esc(k)} (${v}×)`).join(", ")}` : "No connections yet.")
+    + row(true, "Files saved: 0", "No database, index or log.")
+    + row(t.notes.unchanged, t.notes.unchanged ? "Notes untouched" : "Notes changed", `${t.notes.files} files · fingerprint ${esc(t.notes.fingerprint)}`);
+}
+$("runCheck").onclick = async () => {
+  $("runCheck").disabled = true;
+  $("hero").className = "card hero idle"; $("heroIcon").innerHTML = '<span class="spin"></span>';
+  $("heroTitle").textContent = "Checking…"; $("heroText").textContent = "Testing every promise. This can take up to a minute if the AI is asked too.";
+  try {
+    const r = await api("/api/checkup", {});
+    const cls = r.overall === "pass" ? "" : r.overall === "warn" ? "warn" : "bad";
+    $("hero").className = "card hero " + cls;
+    $("heroIcon").textContent = r.overall === "pass" ? "✓" : "!";
+    $("heroTitle").textContent = r.overall === "pass" ? "All clear" : r.overall === "warn" ? "All promises kept, with notes" : "Something needs attention";
+    $("heroText").textContent = `Check-up run ${r.ran_at}. ${r.results.filter(x => x.status === "pass").length} of ${r.results.length} checks passed.`;
+    $("results").innerHTML = r.results.map(x => `<div class="res"><div class="tick ${x.status === "pass" ? "" : x.status}">${x.status === "pass" ? "✓" : "!"}</div>
+      <div><div class="t">${esc(x.name)}</div><div class="d">${esc(x.detail)}</div></div></div>`).join("");
+    $("resultsCard").hidden = false;
+  } catch (e) { $("heroTitle").textContent = "Couldn't run the check-up"; $("heroText").textContent = e.message; }
+  $("runCheck").disabled = false;
+  loadLive();
+};
+$("monthly").onclick = () => {
+  const d = new Date(); d.setMonth(d.getMonth() + 1); d.setHours(9, 0, 0, 0);
+  const p = n => String(n).padStart(2, "0");
+  const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}T090000`;
+  const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Codicilix//EN", "BEGIN:VEVENT",
+    `UID:second-brain-checkup-${Date.now()}@local`, `DTSTAMP:${stamp}`, `DTSTART:${stamp}`, "DURATION:PT10M",
+    "RRULE:FREQ=MONTHLY", "SUMMARY:Codicilix check-up", "DESCRIPTION:Open Codicilix, go to Check-up and press Run check-up.",
+    "END:VEVENT", "END:VCALENDAR"].join("\r\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([ics], { type: "text/calendar" }));
+  a.download = "Codicilix check-up.ics"; a.click();
+  $("heroText").textContent = "Open the downloaded file to add a monthly reminder to your calendar.";
+};
+$("leakBtn").onclick = async () => {
+  const r = await api("/api/try-to-leak", {});
+  $("tryOut").innerHTML = "<b>I just tried to:</b>" + r.results.map(x => `<div>${x.blocked ? "✓ Blocked" : "✗ NOT blocked"} · ${esc(x.test)}</div>`).join("");
+  loadLive();
+};
+$("lsofBtn").onclick = async () => {
+  $("tryOut").textContent = "Asking your Mac…";
+  const r = await api("/api/check-connections", {});
+  if (!r.checked) { $("tryOut").textContent = r.note || "Could not check."; return; }
+  $("tryOut").innerHTML = "<b>Your Mac says:</b>" + r.processes.map(p => !p.running ? `<div>${esc(p.name)}: not running</div>`
+    : `<div>${esc(p.name)}: ${p.connections.length} connection(s), ${p.connections.some(c => !c.local_only) ? '<b style="color:var(--bad)">some go outside</b>' : "all on this laptop ✓"}</div>`).join("")
+    + (r.outside.length ? "" : '<div class="muted">Turn Wi-Fi off and try a question: it still works.</div>');
+};
+
+/* ---------- Start ---------- */
+if (!TOKEN) {
+  document.querySelector("main").innerHTML = '<div class="page on"><div class="card" style="max-width:560px;margin:60px auto;text-align:center"><h2>This window has no key</h2><p class="muted">For your safety, Codicilix only talks to the window it opened itself. Please close this tab and open Codicilix from its app icon.</p></div></div>';
+} else {
+  restoreDemo().catch(() => {}).then(() => restoreAdded()).catch(() => {}).then(() => loadState().catch(() => {})); loadSession().catch(() => {});
+  setInterval(() => loadState().catch(() => {}), 30000);
+}
+</script>
+</body>
+</html>
