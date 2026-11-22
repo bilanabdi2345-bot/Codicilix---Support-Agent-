@@ -5,7 +5,10 @@ memory, and that memory is thrown away when the answer is done.
 
 Supported kinds of notes:
   .md .txt        written notes, meeting notes, drafts, scraps
+  .rtf            notes saved from TextEdit
   .csv            action-item lists
+  .eml            saved emails
+  .json           chat exports (e.g. Teams messages to yourself)
   .ics            calendar events and reminders
   .webloc .url    saved links
   .png .jpg .jpeg .heic  screenshots and photos (text read on this laptop)
@@ -24,8 +27,11 @@ from . import ocr
 KINDS = {
     ".md": "note",
     ".txt": "note",
+    ".rtf": "note",
     ".csv": "action list",
     ".ics": "calendar",
+    ".eml": "email",
+    ".json": "chat messages",
     ".webloc": "saved link",
     ".url": "saved link",
     ".png": "screenshot or photo",
@@ -184,6 +190,135 @@ def _chunks_from_text(text, base):
     return out
 
 
+def rtf_to_text(rtf):
+    """Plain text from an RTF file (what TextEdit saves). Formatting is dropped."""
+    out, depth, skip_at = [], 0, None
+    i, n = 0, len(rtf)
+    while i < n:
+        ch = rtf[i]
+        if ch == "{":
+            depth += 1
+            # Font tables, colour tables and other {\\* ...} groups hold no words.
+            if skip_at is None and re.match(r"\{\\(\*|fonttbl|colortbl|expandedcolortbl|stylesheet|info)", rtf[i:i + 20]):
+                skip_at = depth
+            i += 1
+        elif ch == "}":
+            if skip_at == depth:
+                skip_at = None
+            depth -= 1
+            i += 1
+        elif ch == "\\":
+            m = re.match(r"\\'([0-9a-fA-F]{2})", rtf[i:])
+            if m:
+                if skip_at is None:
+                    out.append(bytes([int(m.group(1), 16)]).decode("cp1252", "replace"))
+                i += m.end()
+                continue
+            m = re.match(r"\\([a-zA-Z]+)(-?\d+)? ?", rtf[i:])
+            if m:
+                word = m.group(1)
+                if skip_at is None:
+                    if word in ("par", "line"):
+                        out.append("\n")
+                    elif word == "tab":
+                        out.append("\t")
+                    elif word == "u" and m.group(2):
+                        out.append(chr(int(m.group(2)) % 65536))
+                i += m.end()
+                continue
+            nxt = rtf[i + 1:i + 2]
+            if skip_at is None:
+                if nxt == "\n" or nxt == "\r":
+                    out.append("\n")
+                elif nxt in "\\{}":
+                    out.append(nxt)
+            i += 2
+        else:
+            if skip_at is None and ch not in "\r\n":
+                out.append(ch)
+            i += 1
+    return re.sub(r"\n{3,}", "\n\n", "".join(out)).strip()
+
+
+def email_to_text(raw):
+    """The parts of a saved email a person would read: who, when, subject, body."""
+    import email
+    from email import policy
+    msg = email.message_from_string(raw, policy=policy.default)
+    head = []
+    for h in ("From", "To", "Cc", "Date", "Subject"):
+        if msg.get(h):
+            head.append(f"{h}: {msg.get(h)}")
+    body = ""
+    try:
+        part = msg.get_body(preferencelist=("plain",))
+        body = part.get_content() if part is not None else ""
+    except (KeyError, LookupError, AttributeError):
+        body = ""
+    if not body and not msg.is_multipart():
+        body = msg.get_payload() or ""
+    return "\n".join(head) + "\n\n" + body.strip()
+
+
+def email_date(raw):
+    import email
+    from email.utils import parsedate_to_datetime
+    try:
+        d = email.message_from_string(raw).get("Date")
+        return parsedate_to_datetime(d).date() if d else None
+    except (TypeError, ValueError):
+        return None
+
+
+_TIME_KEYS = ("timestamp", "time", "date", "created", "createdDateTime", "sent")
+_TEXT_KEYS = ("text", "message", "body", "content")
+_WHO_KEYS = ("sender", "from", "author", "user", "name")
+
+
+def _first(d, keys):
+    for k in keys:
+        v = d.get(k)
+        if isinstance(v, dict):
+            v = v.get("name") or v.get("displayName") or v.get("content")
+        if v:
+            return str(v)
+    return ""
+
+
+def _chunks_from_json(text, rel, base, dated):
+    """A chat export: one piece per message, each dated by its own timestamp.
+    Any other JSON is kept as plain text."""
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return _chunks_from_text(text, base)
+    if isinstance(data, dict):
+        for k in ("messages", "value", "items", "data"):
+            if isinstance(data.get(k), list):
+                data = data[k]
+                break
+    if not (isinstance(data, list) and data and all(isinstance(m, dict) for m in data)):
+        return _chunks_from_text(json.dumps(data, indent=1, ensure_ascii=False), base)
+    out = []
+    lines = text.splitlines()
+    for i, m in enumerate(data):
+        said = _first(m, _TEXT_KEYS)
+        if not said:
+            continue
+        when = _first(m, _TIME_KEYS)
+        who = _first(m, _WHO_KEYS)
+        # Point at the line in the file where this message is written.
+        line = next((n for n, l in enumerate(lines, start=1) if said[:40] in l), 1)
+        body = f"Message{' from ' + who if who else ''}{' sent ' + when[:16].replace('T', ' ') if when else ''}: {said}"
+        d = None
+        try:
+            d = dt.date.fromisoformat(when[:10]) if when else None
+        except ValueError:
+            d = None
+        out.append(dated(body, line, line, d))
+    return out
+
+
 def _chunks_from_lines(text, base):
     """Scrap files where every line is its own note (like stand-up scraps)."""
     return [
@@ -318,6 +453,11 @@ def read_compartment(name, folder, today, kinds=None, files=None, private_open=T
                 text = docs.extract(path) if os.path.getsize(path) <= MAX_DOC_BYTES else None
             else:
                 text = _read_text(path)
+            if text is not None and ext == ".rtf":
+                text = rtf_to_text(text)
+            raw_email = None
+            if text is not None and ext == ".eml":
+                raw_email, text = text, email_to_text(text)
             if text is None:
                 continue
             files.append(rel)
@@ -330,6 +470,8 @@ def read_compartment(name, folder, today, kinds=None, files=None, private_open=T
             if note_date is None and kind == "note":
                 head = "\n".join(text.splitlines()[:2])
                 note_date, note_src = find_date(head, today), "note heading"
+            if note_date is None and raw_email is not None:
+                note_date, note_src = email_date(raw_email), "email date"
             if note_date is not None and note_date > today:
                 note_date = None
             if note_date is None:
@@ -350,6 +492,12 @@ def read_compartment(name, folder, today, kinds=None, files=None, private_open=T
                 new = _chunks_from_ics(text, base)
             elif ext in (".webloc", ".url"):
                 new = _chunks_from_link(text, rel, ext, base)
+            elif ext == ".json":
+                def dated(body, s, e, d, _p=path, _r=rel, _k=kind, _m=mtime):
+                    if d is not None and d <= today:
+                        return Chunk(name, _p, _r, _k, body, s, e, d, "message timestamp")
+                    return Chunk(name, _p, _r, _k, body, s, e, _m, "file last changed")
+                new = _chunks_from_json(text, rel, base, dated)
             elif per_line:
                 new = _chunks_from_lines(text, base)
             else:

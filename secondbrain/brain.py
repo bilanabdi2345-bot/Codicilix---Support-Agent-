@@ -741,7 +741,7 @@ def meetings(compartments, past_days=75, ahead_days=45):
     day = today()
     chunks, _, _ = compartments.read_all(day)
     events = [c for c in chunks if c.kind == "calendar" and c.text.startswith("Event:") and c.date]
-    notes_only = [c for c in chunks if c.kind in ("note", "screenshot or photo", "action list")]
+    notes_only = [c for c in chunks if c.kind in ("note", "screenshot or photo", "action list", "email", "chat messages")]
     out = {"past": [], "upcoming": []}
     for ev in sorted(events, key=lambda c: c.date):
         delta = (ev.date - day).days

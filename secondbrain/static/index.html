@@ -490,13 +490,15 @@ history.replaceState(null, "", location.pathname);
 const H = { "Content-Type": "application/json", "X-Second-Brain": TOKEN };
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const KIND_ICON = { "note": "📝", "action list": "☑️", "calendar": "📅", "saved link": "🔗", "screenshot or photo": "📸", "Word document": "📄", "Excel spreadsheet": "📊", "PDF": "📕" };
-const KIND_LABEL = { "note": "Notes", "action list": "Action lists", "calendar": "Calendars", "saved link": "Saved links", "screenshot or photo": "Screenshots & photos", "Word document": "Word documents", "Excel spreadsheet": "Excel spreadsheets", "PDF": "PDFs" };
+const KIND_ICON = { "note": "📝", "action list": "☑️", "calendar": "📅", "saved link": "🔗", "email": "✉️", "chat messages": "💬", "screenshot or photo": "📸", "Word document": "📄", "Excel spreadsheet": "📊", "PDF": "📕" };
+const KIND_LABEL = { "note": "Notes", "action list": "Action lists", "calendar": "Calendars", "saved link": "Saved links", "email": "Emails", "chat messages": "Chat messages", "screenshot or photo": "Screenshots & photos", "Word document": "Word documents", "Excel spreadsheet": "Excel spreadsheets", "PDF": "PDFs" };
 const KIND_HELP = {
-  "note": "Meeting notes, drafts, scraps (.md, .txt)",
+  "note": "Meeting notes, drafts, scraps (.md, .txt, .rtf)",
   "action list": "Lists of who does what, by when (.csv)",
   "calendar": "Meetings and reminders (.ics)",
   "saved link": "Bookmarks you saved (.webloc, .url)",
+  "email": "Emails you saved (.eml)",
+  "chat messages": "Chat exports, like Teams messages to yourself (.json)",
   "screenshot or photo": "Screenshots, whiteboard photos. Text is read on this laptop",
   "Word document": "Word files (.docx), with comments and tracked changes",
   "Excel spreadsheet": "Excel files (.xlsx), every sheet, with cell comments",

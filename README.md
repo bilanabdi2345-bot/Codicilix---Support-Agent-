@@ -39,6 +39,18 @@ David's original version, with its browser demo and Windows support, is at
 - **Check-up**: one button tests every promise. Add a monthly reminder to your calendar.
 - **Appearance & themes**: a theme gallery (Paper, Midnight, Forest, Sunset, High contrast, Terminal), a theme maker, theme import and download, text size, and an easy-read mode with extra spacing that helps with dyslexia.
 
+## A second sample: Project Helix
+
+`sample-notes/Helix` is a messier set of notes for one moment: the first week back in January,
+getting ready for the Q1 catch-up on Project Helix. It has a handwritten notebook page (a photo),
+a sticky note, an old TextEdit scratchpad, Teams messages to yourself, a budget spreadsheet with
+side notes, and a forwarded email. Some of it is out of date on purpose: the old scratchpad says
+the AWS cap is £45k, while newer notes say Megan raised it to £50k. Some things are not answered
+anywhere, such as whether Finance approved Lily's contract.
+
+Helix is switched off at the start. Turn it on in **Folders & access** (and turn the others off)
+to try it.
+
 ## Themes you can make and share
 
 Like Obsidian, anyone can make a theme and share it as a small file.
@@ -141,7 +153,7 @@ Your Mac's normal picker opens. Pick what you want, and it's added and switched 
 Codicilix remembers where your notes are (never what's in them), so they're still
 there next time. **Remove** stops using them; your files stay exactly where they are.
 
-It reads `.md`, `.txt`, `.csv` action lists, `.ics` calendar files, saved links (`.webloc`, `.url`), and screenshots and photos (`.png`, `.jpg`, `.heic`).
+It reads `.md`, `.txt`, `.rtf`, `.csv` action lists, saved emails (`.eml`), chat exports such as Teams messages (`.json`), `.ics` calendar files, saved links (`.webloc`, `.url`), and screenshots and photos (`.png`, `.jpg`, `.heic`).
 
 ## Sample notes
 

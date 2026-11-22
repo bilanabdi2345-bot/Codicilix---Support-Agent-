@@ -1,0 +1,7 @@
+Workstream,Owner,Q4_Budget_GBP,Status,Manager_Scratch_Notes
+Cloud Sandbox,Davide,15000,Overrun,"Megan approved +5k buffer on 10 Dec -> 20k actual (50k total project)"
+InfoSec Review,Christos,10000,Sandbox Passed,"OAuth patch verified 16 Dec; Q1 Production signoff still open"
+FHIR API,Xinyue,12000,Done (Q4),"Latency fixed; needs Q1 10k-patient load test"
+Data Governance,James,8000,Q1 Blocker,"Synthetic data cleared for Q4; Q1 real clinical data signoff due 15 Jan"
+,,,,
+,,45000,,OLD BASELINE - DO NOT USE

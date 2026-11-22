@@ -611,7 +611,7 @@ class Server(unittest.TestCase):
         html = urllib.request.urlopen(self.url).read().decode()
         self.assertIn("Codicilix", html)
         s = self.call("/api/state")
-        self.assertEqual([c["name"] for c in s["compartments"]], ["Team", "Projects", "Personal"])
+        self.assertEqual([c["name"] for c in s["compartments"]], ["Team", "Projects", "Personal", "Helix"])
 
     def test_ask_and_trust(self):
         r = self.call("/api/ask", {"question": "When does the pilot start?"})
@@ -742,7 +742,7 @@ class Server(unittest.TestCase):
         self.call("/api/demo", {"on": False})
         s = self.call("/api/state")
         self.assertFalse(s["demo_date"])
-        self.assertTrue(all(not c["enabled"] for c in s["compartments"] if c["name"] in ("Team", "Projects", "Personal")))
+        self.assertTrue(all(not c["enabled"] for c in s["compartments"] if c["name"] in ("Team", "Projects", "Personal", "Helix")))
         self.call("/api/demo", {"on": True})
         s = self.call("/api/state")
         self.assertTrue(s["demo_date"])
@@ -777,6 +777,33 @@ class Server(unittest.TestCase):
             self.call("/api/state", headers={"Host": "evil.example"})
         self.assertEqual(ctx.exception.code, 403)
 
+
+
+class HelixFileTypesTest(unittest.TestCase):
+    """The Helix sample: a TextEdit note, a saved email and a Teams export."""
+
+    def read(self):
+        return notes.read_compartment("Helix", os.path.join(SAMPLE, "Helix"), DAY)
+
+    def test_rtf_is_plain_text(self):
+        chunks, _ = self.read()
+        old = [c for c in chunks if c.rel.endswith(".rtf")]
+        self.assertTrue(old)
+        self.assertIn("£45k cap for davide's AWS sandbox", old[0].text)
+        self.assertNotIn("\\fonttbl", old[0].text)
+
+    def test_email_keeps_who_and_when(self):
+        chunks, _ = self.read()
+        mail = [c for c in chunks if c.kind == "email"][0]
+        self.assertIn("From: Hope Williams", mail.text)
+        self.assertIn("Finance won't confirm approval", mail.text)
+        self.assertEqual(str(mail.date), "2026-12-18")
+
+    def test_each_teams_message_has_its_own_date(self):
+        chunks, _ = self.read()
+        msgs = sorted((c for c in chunks if c.kind == "chat messages"), key=lambda c: c.date)
+        self.assertEqual([str(c.date) for c in msgs], ["2026-12-10", "2026-12-16", "2026-12-19"])
+        self.assertIn("£50k", msgs[0].text)
 
 if __name__ == "__main__":
     unittest.main()

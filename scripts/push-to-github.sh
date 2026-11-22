@@ -38,16 +38,17 @@ if git diff --cached --quiet; then
   echo "Nothing new to push."
 else
   git commit -q -F - <<'MSG'
-Codicilix: the best of Bilan's and David's versions
+Add the Project Helix sample notes, and read emails, Teams exports and RTF
 
-Bilan's: handwriting, photos and screenshots, pasted pictures, the photo
-viewer, Word/Excel/PDF with comments and markings, the shield against
-hidden instructions, themes, the app window and the model picker.
-David's: what changed, what I owe, the decision log, private notes, and
-answers that still work without the AI.
+Helix is a messy, partly out-of-date set of notes for the Q1 catch-up:
+a notebook photo, a sticky note, an old TextEdit scratchpad, Teams
+messages to yourself, a budget tracker with side notes and an email.
+Codicilix now reads .eml (who, when, subject, body), .json chat exports
+(each message dated by its own timestamp) and .rtf as plain text.
+Helix starts switched off in Folders & access.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01VVwckBErnYPaqTrkmwxFR8
+Claude-Session: https://claude.ai/code/session_01VVwckDT7HZbWnG791fhe7d
 MSG
   git push origin main
 fi

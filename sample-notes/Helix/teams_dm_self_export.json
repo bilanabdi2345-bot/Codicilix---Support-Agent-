@@ -1,0 +1,17 @@
+[
+  {
+    "timestamp": "2026-12-10T14:22:00Z",
+    "sender": "Manager (Self)",
+    "text": "Update from Megan: she signed off the +£5k AWS buffer for Davide. Total Q4 spend capped at £50k. Also she mentioned Q1 pilot budget (£150k) is verbally agreed, waiting on formal PO."
+  },
+  {
+    "timestamp": "2026-12-16T16:45:10Z",
+    "sender": "Manager (Self)",
+    "text": "Good news: Xinyue deployed the FHIR API cache fix and Christos verified the OAuth patch for the Q4 sandbox demo. Still need James to clear real patient data for Q1."
+  },
+  {
+    "timestamp": "2026-12-19T11:05:33Z",
+    "sender": "Manager (Self)",
+    "text": "Reminder for Jan: check with Hope if Lily's contract got extended into Q1—HR system hadn't updated before shutdown."
+  }
+]
