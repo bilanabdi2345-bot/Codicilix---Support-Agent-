@@ -47,6 +47,8 @@ _scope_roots = lambda: []          # noqa: E731  -> list of normcased abs folder
 _is_allowed = lambda path: True    # noqa: E731  -> False if the user switched this file off
 _program_roots: list[str] = []
 _browser_url: str | None = None    # the one URL we may open at start-up
+_helpers: list = []                # (name, check): the only other programs that may start, see allow_helper()
+_sealed = False                    # once the app is serving, that list can't grow
 
 _WRITE_FLAGS = os.O_WRONLY | os.O_RDWR | os.O_APPEND | os.O_CREAT | os.O_TRUNC
 
@@ -102,6 +104,7 @@ class Ledger:
                 "net_blocked": c["net_blocked"],
                 "exec_blocked": c["exec_blocked"],
                 "net_loopback": c["net_loopback"],
+                "helper_runs": c["helper_run"],
                 "test_blocks": c["write_blocked_test"] + c["net_blocked_test"] + c["exec_blocked_test"],
                 "events": list(self.events)[-120:],
             }
@@ -235,6 +238,17 @@ def _on_net(event, args):
 
 def _on_exec(event, args):
     global _browser_url
+    if event == "subprocess.Popen" and _helpers:
+        executable, argv, cwd, env = (tuple(args) + (None,) * 4)[:4]
+        if executable is None and env is None:
+            for name, check in _helpers:
+                try:
+                    ok = bool(check(argv))
+                except Exception:
+                    ok = False
+                if ok:
+                    LEDGER.add("helper_run", f"started {name} (the one allowed helper)")
+                    return
     text = " ".join(str(a) for a in args)
     if _browser_url and _browser_url in text:
         if event in ("webbrowser.open", "os.startfile", "subprocess.Popen"):
@@ -282,6 +296,28 @@ def install(*, scope_roots, is_allowed, program_roots, browser_url: str | None =
         _installed = True
 
 
+def allow_helper(name: str, check) -> None:
+    """Let one specific helper program start. `check(argv)` is asked before every launch and
+    must say yes only to the exact command line the app builds. Only possible before seal()."""
+    if _sealed:
+        raise Blocked("the list of helper programs is fixed once the app is running")
+    _helpers.append((name, check))
+
+
+def seal() -> None:
+    global _sealed
+    _sealed = True
+
+
+def helpers() -> list[str]:
+    return [name for name, _ in _helpers]
+
+
+def note_helper_read(path: str) -> None:
+    """A helper program read this file for us: record it like any other read."""
+    _on_open((path, "r", 0))
+
+
 def installed() -> bool:
     return _installed
 
@@ -318,22 +354,25 @@ def leak_test(app_dir: str) -> list[dict]:
         ("Start another program that could upload files",
          lambda: subprocess.Popen(["cmd", "/c", "echo", "hi"] if os.name == "nt" else ["echo", "hi"])),
     ]
-    results = []
+    return [attempt(name, fn) for name, fn in attempts]
+
+
+def attempt(name: str, fn) -> dict:
+    """Try something the guard should refuse, and report honestly what happened."""
     _tls.test = True
     try:
-        for name, fn in attempts:
-            try:
-                out = fn()
-                with contextlib.suppress(Exception):
-                    out.close()
-                results.append({"attempt": name, "blocked": False, "how": "NOT blocked: this should never happen"})
-            except Blocked as e:
-                results.append({"attempt": name, "blocked": True, "how": str(e).split("refused: ", 1)[-1]})
-            except Exception as e:  # blocked by something else, still report honestly
-                results.append({"attempt": name, "blocked": False, "how": f"failed for another reason: {type(e).__name__}: {e}"})
+        out = fn()
+        with contextlib.suppress(Exception):
+            out.kill()
+        with contextlib.suppress(Exception):
+            out.close()
+        return {"attempt": name, "blocked": False, "how": "NOT blocked: this should never happen"}
+    except Blocked as e:
+        return {"attempt": name, "blocked": True, "how": str(e).split("refused: ", 1)[-1]}
+    except Exception as e:  # blocked by something else, still report honestly
+        return {"attempt": name, "blocked": False, "how": f"failed for another reason: {type(e).__name__}: {e}"}
     finally:
         _tls.test = False
-    return results
 
 
 def _connect_raw(addr):

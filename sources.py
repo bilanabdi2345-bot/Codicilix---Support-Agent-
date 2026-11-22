@@ -20,6 +20,12 @@ CAL_EXT = {".ics"}
 LINK_EXT = {".url", ".webloc"}
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".gif", ".heic", ".bmp", ".webp", ".tif", ".tiff"}
 MAX_BYTES = 2_000_000
+MAX_IMAGE_BYTES = 20_000_000
+
+# Reads the text in screenshots on this device, if the app has a way to (see ocr.py).
+# A function: list of image paths -> {path: [lines of text] or "why it couldn't be read"}.
+# None means images aren't read at all.
+OCR_READER = None
 SKIP_DIRS = {"__pycache__", "node_modules", ".git", ".venv", "venv"}
 
 KIND_LABEL = {
@@ -177,12 +183,23 @@ def kind_of(path: str) -> str | None:
     return None
 
 
+_PRIVATE_RX = re.compile(r"(?<![a-z])(private|confidential)(?![a-z])", re.I)
+
+
+def is_private(display: str) -> bool:
+    """A file is private if its name, or a folder it sits in (inside the allowed folder), says
+    "private" or "confidential". Decided from the name alone, so a private note is never
+    opened to find out."""
+    return bool(_PRIVATE_RX.search(display.replace("\\", "/")))
+
+
 def norm_key(path: str) -> str:
     return os.path.normcase(os.path.abspath(path))
 
 
-def inventory(roots: list[str], switched_off: set[str]) -> list[dict]:
-    """List what is in the allowed folders (names and sizes only; nothing is opened)."""
+def inventory(roots: list[str], switched_off: set[str], switched_on: set[str] = frozenset()) -> list[dict]:
+    """List what is in the allowed folders (names and sizes only; nothing is opened).
+    Private files stay off until you switch them on (their key is in switched_on)."""
     out = []
     for root in roots:
         for dirpath, dirnames, filenames in os.walk(root):
@@ -200,19 +217,26 @@ def inventory(roots: list[str], switched_off: set[str]) -> list[dict]:
                 if k is None:
                     readable, why_not = False, "file type not supported"
                 elif k == "screenshot":
-                    readable, why_not = False, "image - no on-device text recognition yet"
+                    if OCR_READER is None:
+                        readable, why_not = False, "image - no on-device text recognition yet"
+                    elif st.st_size > MAX_IMAGE_BYTES:
+                        readable, why_not = False, "image larger than 20 MB"
                 elif st.st_size > MAX_BYTES:
                     readable, why_not = False, "larger than 2 MB"
                 key = norm_key(p)
+                display = os.path.relpath(p, root).replace(os.sep, "/")
+                private = is_private(display)
+                locked = private and key not in switched_on and key not in switched_off
                 out.append({
                     "path": p, "key": key, "root": root,
-                    "display": os.path.relpath(p, root).replace(os.sep, "/"),
+                    "display": display,
                     "kind": k or "other", "kind_label": KIND_LABEL.get(k or "", "Other"),
                     "size": st.st_size,
                     "modified": dt.date.fromtimestamp(st.st_mtime).isoformat(),
                     "readable": readable, "why_not": why_not,
-                    "allowed": readable and key not in switched_off,
+                    "allowed": readable and key not in switched_off and not locked,
                     "switched_off": key in switched_off,
+                    "private": private, "private_locked": locked,
                 })
     return out
 
@@ -280,7 +304,8 @@ def csv_rows_to_lines(text: str) -> tuple[list[str], list[str]]:
     return lines, owners
 
 
-def read_doc(f: dict) -> Doc | None:
+def read_doc(f: dict, text: str | None = None) -> Doc | None:
+    """Read one file. For a screenshot, `text` is what the on-device text reader found in it."""
     path, kind = f["path"], f["kind"]
     mtime = dt.date.fromisoformat(f["modified"])
     if kind == "calendar":
@@ -297,7 +322,8 @@ def read_doc(f: dict) -> Doc | None:
         return Doc(path, f["display"], kind, title, mtime, "file time (guessed)",
                    lines=[f"{title} — {url}"] if url else [title], url=url)
 
-    text = _read_text(path)
+    if text is None:
+        text = _read_text(path)
     lines = text.splitlines()
     name = os.path.splitext(os.path.basename(path))[0]
 
@@ -393,13 +419,26 @@ def _read_ics(f: dict, mtime: dt.date) -> Doc:
 
 
 def read_all(files: list[dict]) -> list[Doc]:
-    """Read every allowed, readable file. Returns fresh objects every time."""
+    """Read every allowed, readable file. Returns fresh objects every time.
+    Screenshots are read in one go by the on-device text reader, if there is one; an image
+    it can't read is marked unreadable (with the reason) so answers can say so."""
+    images = [f for f in files if f["allowed"] and f["kind"] == "screenshot"]
+    texts = OCR_READER([f["path"] for f in images]) if images and OCR_READER else {}
     docs = []
     for f in files:
-        if f["allowed"]:
+        if not f["allowed"]:
+            continue
+        if f["kind"] == "screenshot":
+            got = texts.get(f["path"])
+            if not isinstance(got, list) or not any(ln.strip() for ln in got):
+                f["readable"], f["allowed"] = False, False
+                f["why_not"] = got if isinstance(got, str) and got else "no text found in this image"
+                continue
+            d = read_doc(f, text="\n".join(got))
+        else:
             d = read_doc(f)
-            if d:
-                docs.append(d)
+        if d:
+            docs.append(d)
     return docs
 
 

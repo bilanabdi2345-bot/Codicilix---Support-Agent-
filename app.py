@@ -21,7 +21,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 # What you've allowed the assistant to see. In memory only: when the app stops,
 # it's gone. Nothing about your notes is ever stored.
-STATE = {"roots": [], "off": set()}
+STATE = {"roots": [], "off": set(), "on": set()}   # "on": private files you chose to let it read
 
 
 def _scope_roots():
@@ -29,7 +29,16 @@ def _scope_roots():
 
 
 def _is_allowed(path):
-    return os.path.normcase(os.path.abspath(path)) not in STATE["off"]
+    key = os.path.normcase(os.path.abspath(path))
+    if key in STATE["off"]:
+        return False
+    if key in STATE["on"]:
+        return True
+    for r in STATE["roots"]:            # private notes stay closed until you switch them on
+        rk = os.path.normcase(os.path.abspath(r))
+        if key.startswith(rk + os.sep):
+            return not sources.is_private(os.path.relpath(key, rk))
+    return True
 
 
 def parse_args():
@@ -42,6 +51,7 @@ def parse_args():
                    help="start empty instead of with the bundled simulated notes")
     p.add_argument("--model", help="local AI model to use if Ollama is running (default: the best one installed)")
     p.add_argument("--no-ai", action="store_true", help="never use a local AI model, even if one is running")
+    p.add_argument("--no-ocr", action="store_true", help="don't read text in screenshots, even on Windows")
     p.add_argument("--token", help=argparse.SUPPRESS)   # fixed key, for automated testing only
     return p.parse_args()
 
@@ -63,11 +73,14 @@ _PROGRAM = [sys.prefix, sys.base_prefix, sys.exec_prefix, os.path.join(HERE, "ui
 guard.install(scope_roots=_scope_roots, is_allowed=_is_allowed, program_roots=_PROGRAM,
               browser_url=f"http://127.0.0.1:{ARGS.port}/#key={TOKEN}")
 
+import base64  # noqa: E402
 import datetime as dt  # noqa: E402
 import hashlib  # noqa: E402
 import hmac  # noqa: E402
 import http.client  # noqa: E402
 import json  # noqa: E402
+import mimetypes  # noqa: E402
+import subprocess  # noqa: E402
 import threading  # noqa: E402
 import time  # noqa: E402
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer  # noqa: E402
@@ -75,7 +88,27 @@ from urllib.parse import parse_qs, urlsplit  # noqa: E402
 
 import ai  # noqa: E402
 import brain  # noqa: E402
+import ocr  # noqa: E402
 import sources  # noqa: E402
+
+
+# Screenshots: read on this computer by Windows' own text reader. The guard lets that one
+# program start, and only with the exact command line ocr.py builds for images you allowed.
+def _image_ok(path) -> bool:
+    key = os.path.normcase(os.path.abspath(path))
+    return (any(key.startswith(r + os.sep) for r in _scope_roots()) and _is_allowed(path)
+            and sources.kind_of(path) == "screenshot" and os.path.isfile(path))
+
+
+def _read_images(paths):
+    for p in paths:
+        guard.note_helper_read(p)      # the helper reads them, so the receipt lists them
+    return ocr.read_images(paths)
+
+
+if ocr.available() and not ARGS.no_ocr:
+    guard.allow_helper(ocr.NAME, lambda argv: ocr.command_ok(argv, _image_ok))
+    sources.OCR_READER = _read_images
 
 STATE["prints"] = {}   # file -> SHA-256 fingerprint taken when its folder was allowed (not the contents)
 SERVER = {"address": None}
@@ -95,12 +128,14 @@ def today() -> dt.date:
 
 
 def inventory():
-    return sources.inventory(STATE["roots"], STATE["off"])
+    return sources.inventory(STATE["roots"], STATE["off"], STATE["on"])
 
 
 def context(files):
     return {"switched_off": [f["display"] for f in files if f["switched_off"]],
-            "unreadable": [f["display"] for f in files if not f["readable"]]}
+            "unreadable": [f["display"] for f in files if not f["readable"]],
+            "private_skipped": [f["display"] for f in files if f["private_locked"] and f["readable"]],
+            "why_not": {f["display"]: f["why_not"] for f in files if not f["readable"]}}
 
 
 SAMPLE = os.path.join(HERE, "sample_notes")
@@ -150,7 +185,8 @@ def api_state(_body):
                       "cloud": None if sample else sources.cloud_sync_warning(r),
                       "files": sum(1 for f in files if f["root"] == r)})
     return {"roots": roots, "files": files, "today": today().isoformat(),
-            "sample_path": SAMPLE, "guard": guard.installed(), "pid": os.getpid(), "ai": ai_status()}
+            "sample_path": SAMPLE, "guard": guard.installed(), "pid": os.getpid(), "ai": ai_status(),
+            "ocr": ocr.NAME if sources.OCR_READER else None}
 
 
 def _fingerprint(path: str) -> str:
@@ -165,6 +201,8 @@ def take_fingerprints(root: str) -> None:
     """Remember a SHA-256 checksum of each file (not its contents) so we can later prove
     the app never changed your notes."""
     for f in sources.inventory([root], set()):
+        if f["private"]:
+            continue        # a private note isn't opened, not even to fingerprint it, until you allow it
         try:
             STATE["prints"][f["key"]] = _fingerprint(f["path"])
         except OSError:
@@ -206,6 +244,7 @@ def api_scope_remove(body):
     path = os.path.normcase(os.path.abspath(str(body.get("path", ""))))
     STATE["roots"] = [r for r in STATE["roots"] if os.path.normcase(os.path.abspath(r)) != path]
     STATE["off"] = {k for k in STATE["off"] if not k.startswith(path)}
+    STATE["on"] = {k for k in STATE["on"] if not k.startswith(path)}
     STATE["prints"] = {k: v for k, v in STATE["prints"].items() if not k.startswith(path)}
     return {"ok": True}
 
@@ -214,8 +253,10 @@ def api_scope_toggle(body):
     key = os.path.normcase(os.path.abspath(str(body.get("path", ""))))
     if body.get("allowed"):
         STATE["off"].discard(key)
+        STATE["on"].add(key)
     else:
         STATE["off"].add(key)
+        STATE["on"].discard(key)
     return {"ok": True}
 
 
@@ -251,13 +292,26 @@ def api_source(body):
     if not f:
         return {"error": "That file isn't in a folder you've allowed."}
     if not f["allowed"]:
-        return {"error": "You've switched that file off, so I won't open it."}
-    with open(f["path"], "r", encoding="utf-8", errors="replace") as fh:
-        lines = fh.read().splitlines()
+        return {"error": "That note is marked private, so I won't open it until you switch it on."
+                if f["private_locked"] else "You've switched that file off, so I won't open it."}
+    image = None
+    if f["kind"] == "screenshot":
+        got = sources.OCR_READER([f["path"]]).get(f["path"]) if sources.OCR_READER else None
+        if not isinstance(got, list):
+            return {"error": f"I couldn't read the text in that image ({got or 'no text reader on this computer'})."}
+        lines = got
+        if f["size"] <= 5_000_000:
+            mime = mimetypes.guess_type(f["path"])[0] or "image/png"
+            with open(f["path"], "rb") as fh:
+                image = f"data:{mime};base64,{base64.b64encode(fh.read()).decode('ascii')}"
+    else:
+        with open(f["path"], "r", encoding="utf-8", errors="replace") as fh:
+            lines = fh.read().splitlines()
     n = max(1, int(body.get("line", 1) or 1))
     lo, hi = max(1, n - 8), min(len(lines), n + 8)
     return {"file": f["display"], "path": f["path"], "path_display": f"{root_name(f['root'])}/{f['display']}",
-            "line": n, "total": len(lines), "lines": [{"n": i, "text": lines[i - 1]} for i in range(lo, hi + 1)]}
+            "line": n, "total": len(lines), "lines": [{"n": i, "text": lines[i - 1]} for i in range(lo, hi + 1)],
+            "image": image, "read_by": ocr.NAME if f["kind"] == "screenshot" else None}
 
 
 def api_ledger(_body):
@@ -281,6 +335,7 @@ def api_leaktest(_body):
 def api_forget(_body):
     STATE["roots"].clear()
     STATE["off"].clear()
+    STATE["on"].clear()
     STATE["prints"].clear()
     guard.LEDGER.reset()
     guard.LEDGER.add("forget", "You ended the session: allowed folders and this ledger were cleared from memory.")
@@ -332,7 +387,22 @@ def api_checkup(_body):
     add("No copies can be saved", "pass" if leak[3]["blocked"] else "fail",
         "Trying to save a copy of a note was refused. The app has no database, index, cache or log file.")
     add("No other programs can be started", "pass" if leak[4]["blocked"] else "fail",
-        "Trying to start another program (which could upload files) was refused.")
+        "Trying to start another program (which could upload files) was refused."
+        + (f" The one exception is {ocr.NAME}, for your screenshots." if guard.helpers() else ""))
+    if guard.helpers():
+        outside = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "win.ini")
+        # pipes, not the null device: opening that to write would be refused first, for the wrong reason
+        quiet = {"stdin": subprocess.PIPE, "stdout": subprocess.PIPE, "stderr": subprocess.PIPE,
+                 "creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0)}
+        tries = [guard.attempt("Use the text reader on a file outside your folders",
+                               lambda: ocr.start([outside], **quiet)),
+                 guard.attempt("Start the text reader's program with a different command",
+                               lambda: subprocess.Popen(ocr.PREFIX[:-2] + ["-Command", "echo hi"], **quiet))]
+        narrow = all(t["blocked"] for t in tries)
+        add("Screenshots are read on this computer, and only yours", "pass" if narrow else "fail",
+            f"Screenshots are read by {ocr.NAME}, which works offline. It's the only program the app may "
+            f"start, and only for images in your folders: using it on a file outside them, or changing its "
+            f"command, was refused." if narrow else "The text reader could be started for something else.")
     host, port = SERVER["address"] or ("?", 0)
     add("Only this computer can reach the app", "pass" if host == "127.0.0.1" else "fail",
         "It listens on 127.0.0.1 only, so other devices on your network can't connect to it.")
@@ -358,9 +428,9 @@ def api_checkup(_body):
             f"({', '.join(fp['changed'][:3])}). That's expected if you edited them yourself: this app can't "
             f"write files.")
     snap = guard.LEDGER.snapshot()
-    add("Switched-off files stay closed", "pass" if not snap["reads_switched_off"] else "fail",
-        "No file you switched off has been opened." if not snap["reads_switched_off"]
-        else f"{snap['reads_switched_off']} switched-off file(s) were opened.")
+    add("Switched-off and private files stay closed", "pass" if not snap["reads_switched_off"] else "fail",
+        "No file you switched off, and no private note you haven't switched on, has been opened."
+        if not snap["reads_switched_off"] else f"{snap['reads_switched_off']} switched-off or private file(s) were opened.")
     add("Nothing outside your folders was read", "pass" if not snap["reads_outside_scope"] else "fail",
         "Every file the app opened was inside a folder you allowed." if not snap["reads_outside_scope"]
         else f"{snap['reads_outside_scope']} file(s) outside your folders were opened.")
@@ -505,6 +575,7 @@ def main():
     if server is None:
         sys.exit(f"Couldn't find a free port near {ARGS.port}.")
     SERVER["address"] = server.server_address[:2]
+    guard.seal()                       # no more helper programs can be allowed from here on
     url = f"http://127.0.0.1:{port}/#key={TOKEN}"
     guard._browser_url = url
     st = ai_status()
@@ -512,6 +583,7 @@ def main():
     print(f"  Open this link in your browser (it includes this launch's secret key):\n    {url}")
     print("  Ctrl+C to stop: everything it saw is forgotten.")
     print(f"  Privacy guard: on. Process id {os.getpid()}.")
+    print(f"  Screenshots: {'read on this computer by ' + ocr.NAME if sources.OCR_READER else 'listed, not read'}.")
     print(f"  Local AI: {'using ' + st['model'] + ' on this computer' if st.get('available') else 'off (answers come from code only)'}.\n")
     if not ARGS.no_browser:
         def _open():

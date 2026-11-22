@@ -20,14 +20,16 @@ SAMPLE = os.path.join(HERE, "sample_notes")
 TODAY = dt.date(2026, 11, 22)
 
 
-def load(off=()):
-    files = sources.inventory([SAMPLE], {sources.norm_key(os.path.join(SAMPLE, p)) for p in off})
+def load(off=(), on=()):
+    files = sources.inventory([SAMPLE], {sources.norm_key(os.path.join(SAMPLE, p)) for p in off},
+                              {sources.norm_key(os.path.join(SAMPLE, p)) for p in on})
     # Files with no date inside are dated by their file timestamp, and a fresh git clone stamps
     # everything "now". Pin those dates so the tests give the same results on any day.
     for f in files:
         f["modified"] = "2026-11-21"
     ctx = {"switched_off": [f["display"] for f in files if f["switched_off"]],
-           "unreadable": [f["display"] for f in files if not f["readable"]]}
+           "unreadable": [f["display"] for f in files if not f["readable"]],
+           "private_skipped": [f["display"] for f in files if f["private_locked"] and f["readable"]]}
     return sources.read_all(files), ctx
 
 
@@ -193,6 +195,116 @@ class FeatureTests(unittest.TestCase):
         self.assertEqual(r["status"], "not_found")
 
 
+PRIVATE_NOTE = "private/2026-11-14 note to self.md"
+WHITEBOARD = "screenshots/whiteboard 2026-11-17.png"
+
+
+class DecisionPrivacyScreenshotTests(unittest.TestCase):
+    def test_decision_log_marks_what_changed_since(self):
+        docs, ctx = load()
+        r = brain.chat(docs, "Show the decision log", TODAY, ctx)
+        self.assertEqual(r["answer_kind"], "decisions")
+        self.assertIn("6 decisions", r["summary"])
+        self.assertIn("4 have something that changed since", r["summary"])
+        by_text = {i["text"]: i for i in r["items"]}
+        launch = by_text["Launch date 1 Dec confirmed."]
+        self.assertEqual(launch["flags"], ["changed since"])
+        self.assertEqual(launch["replaced_by"]["reason"], "1 Dec → 15 Jan 2027")
+        self.assertTrue(launch["replaced_by"]["tentative"])                 # the new date isn't final either
+        self.assertEqual(by_text["Budget £40k approved for year 1."]["replaced_by"]["reason"], "£40k → £55k")
+        self.assertIn("freeze", by_text["headcount approved for 1 data analyst to support Atlas"]["replaced_by"]["reason"])
+        self.assertEqual(by_text["agreed: move launch to 15 Jan, pending steering sign-off"]["flags"], ["not final"])
+        self.assertEqual(by_text["she'd like to lead the vendor tech eval. said yes."]["flags"], ["still stands"])
+        dates = [i["source"]["date"] for i in r["items"]]
+        self.assertEqual(dates, sorted(dates, reverse=True))                 # newest first
+        # other ways of asking, and what should NOT open the log
+        for q in ("what have we decided?", "decisions", "all decisions", "list our decisions so far"):
+            self.assertEqual(brain.chat(docs, q, TODAY, ctx).get("answer_kind"), "decisions", q)
+        self.assertEqual(brain.chat(docs, "decisions in October", TODAY, ctx)["answer_kind"], "period")
+        self.assertNotEqual(brain.chat(docs, "what did we decide about the vendor?", TODAY, ctx)["answer_kind"],
+                            "decisions")
+
+    def test_private_notes_stay_closed_until_switched_on(self):
+        self.assertTrue(sources.is_private("private/note.md"))
+        self.assertTrue(sources.is_private("hr/CONFIDENTIAL - review.txt"))
+        self.assertFalse(sources.is_private("meetings/privately owned.md"))
+        docs, ctx = load()
+        self.assertNotIn(PRIVATE_NOTE, {d.display for d in docs})          # never even opened
+        self.assertEqual(ctx["private_skipped"], [PRIVATE_NOTE])
+        r = brain.chat(docs, "what did Priya say about the offer?", TODAY, ctx)
+        self.assertNotEqual(r["status"], "found")
+        self.assertTrue(any(g["text"].startswith("1 private note not read") for g in r["gaps"]), r["gaps"])
+        b = brain.chat(docs, "prepare me for my 1:1 with Priya", TODAY, ctx)["brief"]
+        self.assertTrue(any("private note not read" in g["text"] for g in section(b, "gaps")["items"]))
+        docs, ctx = load(on=[PRIVATE_NOTE])                                  # you switch it on
+        self.assertEqual(ctx["private_skipped"], [])
+        r = brain.chat(docs, "what did Priya say about the offer?", TODAY, ctx)
+        self.assertEqual(r["status"], "found")
+        self.assertEqual(r["items"][0]["source"]["file"], PRIVATE_NOTE)
+
+    def test_screenshot_text_is_used_like_a_note(self):
+        lines = ["ATLAS ROLLOUT - draft 17/11", "5 Jan: go / no-go call", "Priya: API tier test by 1 Dec",
+                 "Kestrel fallback if Brightline API still slow?"]
+        old = sources.OCR_READER
+        sources.OCR_READER = lambda paths: {p: list(lines) for p in paths}
+        try:
+            docs, ctx = load()
+        finally:
+            sources.OCR_READER = old
+        wb = next(d for d in docs if d.display == WHITEBOARD)
+        self.assertEqual(wb.date, dt.date(2026, 11, 17))
+        r = brain.chat(docs, "what's the fallback if Brightline is slow?", TODAY, ctx)
+        self.assertEqual(r["items"][0]["source"]["file"], WHITEBOARD)
+        b = brain.chat(docs, "prepare me for my 1:1 with Priya", TODAY, ctx)["brief"]
+        job = next(i for i in section(b, "actions")["items"] if i["source"]["file"] == WHITEBOARD)
+        self.assertEqual(job["text"], "Priya: API tier test by 1 Dec")       # her job, with its deadline
+        self.assertEqual(job["owner"], "Priya")
+
+    def test_unreadable_screenshot_says_why(self):
+        old = sources.OCR_READER
+        sources.OCR_READER = lambda paths: {p: "Windows has no text-recognition language installed" for p in paths}
+        try:
+            files = sources.inventory([SAMPLE], set())
+            docs = sources.read_all(files)
+        finally:
+            sources.OCR_READER = old
+        wb = next(f for f in files if f["display"] == WHITEBOARD)
+        self.assertFalse(wb["readable"])
+        ctx = {"unreadable": [WHITEBOARD], "why_not": {WHITEBOARD: wb["why_not"]}}
+        r = brain.ask(docs, "when is the launch?", TODAY, ctx)
+        self.assertIn("no text-recognition language", " ".join(g["text"] for g in r["gaps"]))
+
+    def test_text_reader_command_is_checked_exactly(self):
+        import subprocess
+        import ocr
+        img = os.path.join(SAMPLE, *WHITEBOARD.split("/"))
+        argv = ocr.command([img])
+        yes = lambda p: True    # noqa: E731
+        self.assertFalse(ocr.command_ok(argv, yes))                         # nothing is waiting to run
+        ocr._pending.argv = argv
+        try:
+            self.assertTrue(ocr.command_ok(argv, yes))
+            self.assertTrue(ocr.command_ok(subprocess.list2cmdline(argv), yes))   # Windows passes one string
+            self.assertFalse(ocr.command_ok(argv, lambda p: False))           # an image you haven't allowed
+            self.assertFalse(ocr.command_ok(argv[:-1] + ["C:\\Windows\\win.ini"], yes))
+            self.assertFalse(ocr.command_ok(subprocess.list2cmdline(argv) + " -Command x", yes))
+        finally:
+            ocr._pending.argv = None
+
+    @unittest.skipUnless(os.name == "nt", "Windows' text reader only exists on Windows")
+    def test_windows_text_reader_reads_the_whiteboard(self):
+        import ocr
+        if not ocr.available():
+            self.skipTest("Windows PowerShell isn't available")
+        img = os.path.join(SAMPLE, *WHITEBOARD.split("/"))
+        got = ocr.read_images([img])[img]
+        if isinstance(got, str):
+            self.skipTest(f"this Windows can't read text: {got}")
+        text = " ".join(got)
+        self.assertIn("Brightline", text)
+        self.assertIn("Priya", text)
+
+
 class FakeOllama:
     """A stand-in for Ollama on 127.0.0.1: lists one model and answers with cited test bullets."""
     from http.server import BaseHTTPRequestHandler as _B
@@ -249,6 +361,7 @@ class YServerTests(unittest.TestCase):
     def tearDownClass(cls):
         cls.srv.shutdown()
         cls.fake.shutdown()
+        sources.OCR_READER = None     # the guard tests that follow read notes without the text reader
 
     def call(self, method, path, body=None, key="test-key", host=None):
         import http.client
@@ -296,6 +409,24 @@ class YServerTests(unittest.TestCase):
         sent = FakeOllama.last
         self.assertEqual(sent["keep_alive"], 0)                # the model is told to forget straight away
         self.assertIn("[2] (10 Nov, b.md) agreed: move launch to 15 Jan", sent["messages"][1]["content"])
+
+    def test_private_note_is_closed_until_switched_on(self):
+        path = os.path.join(SAMPLE, *PRIVATE_NOTE.split("/"))
+        _, body = self.call("POST", "/api/chat", {"message": "what did Priya say about the offer?"})
+        self.assertNotIn(PRIVATE_NOTE, body["receipt"]["files_read"])
+        self.assertTrue(any("private note not read" in g["text"] for g in body["data"]["gaps"]))
+        from urllib.parse import quote
+        _, src = self.call("GET", f"/api/source?path={quote(path)}&line=4")
+        self.assertIn("marked private", src["data"]["error"])
+        self.call("POST", "/api/scope/toggle", {"path": path, "allowed": True})
+        try:
+            _, body = self.call("POST", "/api/chat", {"message": "what did Priya say about the offer?"})
+            self.assertIn(PRIVATE_NOTE, body["receipt"]["files_read"])
+            self.assertEqual(body["data"]["items"][0]["source"]["file"], PRIVATE_NOTE)
+        finally:
+            key = os.path.normcase(os.path.abspath(path))
+            self.app.STATE["on"].discard(key)
+            self.app.STATE["off"].discard(key)
 
     def test_checkup_passes_every_check(self):
         status, body = self.call("POST", "/api/checkup", {})

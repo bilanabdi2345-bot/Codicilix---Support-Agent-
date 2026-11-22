@@ -14,12 +14,15 @@
   const ROOT = "Simulated notes";
   const FILES = window.SB_DEMO_FILES.map((f) => ({ ...f, path: `demo/${f.display}`, root: ROOT }));
   const off = new Set();
+  const on = new Set();      // private notes you chose to let it read
   const readCounts = new Map();
   const loadedAt = performance.now();
 
-  const inventory = () => E.inventory(FILES, off);
+  const inventory = () => E.inventory(FILES, off, on);
   const context = (inv) => ({ switched_off: inv.filter((f) => f.switched_off).map((f) => f.display),
-    unreadable: inv.filter((f) => !f.readable).map((f) => f.display) });
+    unreadable: inv.filter((f) => !f.readable).map((f) => f.display),
+    private_skipped: inv.filter((f) => f.private_locked && f.readable).map((f) => f.display),
+    why_not: Object.fromEntries(inv.filter((f) => !f.readable).map((f) => [f.display, f.why_not])) });
   const publicFile = ({ text, ...rest }) => rest;   // the sidebar gets names and sizes, never contents
 
   function readAllRecorded(inv) {
@@ -57,7 +60,7 @@
     },
     "POST /api/scope/toggle": (b) => {
       const key = String(b.path || "").toLowerCase();
-      if (b.allowed) off.delete(key); else off.add(key);
+      if (b.allowed) { off.delete(key); on.add(key); } else { off.add(key); on.delete(key); }
       return { ok: true };
     },
     "POST /api/scope/add": () => ({ error: "This online demo only uses its simulated notes. To use your own folders, run the app on your own computer." }),
@@ -84,7 +87,8 @@
     "GET /api/source": (b, rec) => {
       const f = inventory().find((x) => x.key === String(b.path || "").toLowerCase());
       if (!f) return { error: "That file isn't part of the simulated notes." };
-      if (!f.allowed) return { error: "You've switched that file off, so I won't open it." };
+      if (!f.allowed) return { error: f.private_locked ? "That note is marked private, so I won't open it until you switch it on."
+        : "You've switched that file off, so I won't open it." };
       rec.push(f.display);
       const lines = f.text.split(/\r\n|\r|\n/);
       if (lines.length && lines[lines.length - 1] === "") lines.pop();
@@ -103,7 +107,7 @@
         events: [], pid: null };
     },
     "POST /api/leaktest": async () => ({ results: await browserLeakTest() }),
-    "POST /api/forget": () => { off.clear(); readCounts.clear(); return { ok: true }; },
+    "POST /api/forget": () => { off.clear(); on.clear(); readCounts.clear(); return { ok: true }; },
   };
 
   // Try to send data out of this page. The page's security policy should make the

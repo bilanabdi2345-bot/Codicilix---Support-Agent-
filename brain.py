@@ -282,6 +282,9 @@ def build_frags(docs: list[Doc], roster: Roster) -> list[Frag]:
 _DATEISH = re.compile(r"^\s*(?:(?:mon|tue|wed|thu|fri|sat|sun)\w*\s+)?\d{1,2}(?:/\d{1,2}/\d{2,4}|\s+\w+\s+20\d\d)\s*$", re.I)
 
 
+_NAMED_JOB_RX = re.compile(r"^\s*(?:[-*•]\s*)?([A-Za-z]+)\s*:\s*\S")
+
+
 def _tag(f: Frag, d: Doc, roster: Roster) -> None:
     t, raw = f.text, f.raw
     f.people = roster.in_text(t)
@@ -328,6 +331,10 @@ def _tag(f: Frag, d: Doc, roster: Roster) -> None:
                 if re.search(rf"\b{first}\s+(?:to|will|needs to|should)\s+(?!be\b)\w+", t, re.I):
                     reason = f"says {roster.name(first)} will do something"
                     break
+        if not reason:   # "Priya: API tier test by 1 Dec" (a name, a job and a deadline)
+            nm = _NAMED_JOB_RX.match(t)
+            if nm and nm.group(1).lower() in roster.full and f.dates and re.search(r"\b(?:by|before|due)\b", t, re.I):
+                reason = f"gives {roster.name(nm.group(1).lower())} a job with a deadline"
         if not reason and d.kind == "reminders":
             reason = "in your reminders"
         if reason:
@@ -337,6 +344,10 @@ def _tag(f: Frag, d: Doc, roster: Roster) -> None:
     if d.kind == "actions" and " · " in t:
         who = t.split(" · ")[1].strip().lower()
         f.owner = "you" if who in ("me", "i", "you") else (who.split()[0] if who.split() else None)
+    if f.owner is None and f.tags & {"action", "done", "question"}:
+        nm = _NAMED_JOB_RX.match(t)
+        if nm and nm.group(1).lower() in roster.full:
+            f.owner = nm.group(1).lower()
     if f.owner is None and f.tags & {"action", "done", "question"}:
         for first in roster.full:
             if re.search(rf"(?:^|[\s(@]){first}\s+(?:to|will|needs to|should)\s+(?!be\b)\w+", t, re.I):
@@ -872,6 +883,7 @@ def _brief(docs: list[Doc], event: dict, today: dt.date, context: dict) -> dict:
     if context.get("switched_off"):
         gaps.append({"text": f"You switched off {_plural(len(context['switched_off']), 'file')} "
                              f"({', '.join(context['switched_off'][:3])}), so I didn't look at them.", "kind": "scope"})
+    gaps += _private_gaps(context)
     sections.append({"id": "gaps", "title": "What I couldn't check", "subtitle": "So you know where this brief stops",
                      "items": gaps or [{"text": "Nothing obvious is missing. All the files you allowed were readable.",
                                         "kind": "ok"}], "plain": True})
@@ -899,9 +911,17 @@ def _unreadable_gaps(context: dict, frags: list[Frag]) -> list[dict]:
                                                                                  f.text, re.I)]
         extra = (f" Your note “{refs[0].text}” ({fmt_date(refs[0].date)}) points to it, so something "
                  f"relevant may be in it.") if refs else ""
-        out.append({"text": f"I can't read images on this device yet, so I skipped {name}.{extra}",
+        why = _unreadable_reason(context, name)
+        out.append({"text": (f"I couldn't read {name} ({why}).{extra}" if why else
+                             f"I can't read images on this device yet, so I skipped {name}.{extra}"),
                     "kind": "unreadable", "source": src(refs[0]) if refs else None})
     return out
+
+
+def _unreadable_reason(context: dict, name: str) -> str:
+    """Why a file couldn't be read, unless it's just 'this device has no text reader'."""
+    why = (context.get("why_not") or {}).get(name, "")
+    return "" if not why or why.startswith("image - no on-device") else why
 
 
 _INCOMPLETE_RX = re.compile(r"(\bbecause|\band|\bbut|\bso|:|-|—|,)\s*$|\[?\btodo\b|\btbd\b|\bxx+\b|\[\s*\]|\?\?\?", re.I)
@@ -1017,6 +1037,10 @@ def _talking_points(sections: list[dict], roster: Roster, people: set) -> list[d
 _MY_ACTIONS_RX = re.compile(r"\b(i owe|owe|waiting on me|my (?:actions|todos?|to-?dos|tasks)|what do i (?:need|have) to do|"
                             r"on my plate|did i promise|i promised|i forgot|forgetting)\b", re.I)
 _CHANGED_RX = re.compile(r"\bwhat(?:'s| has| have)? changed\b|\bout of date\b|\bcontradict", re.I)
+_DECISION_LOG_RX = re.compile(r"\bdecision log\b|\b(?:all|every)\s+(?:the\s+|our\s+|my\s+)?decisions\b|"
+                              r"^\s*(?:show(?: me)?|list|give me)?\s*(?:the\s+|our\s+|my\s+)?decisions"
+                              r"(?: so far| we(?:'ve| have) made| made)?\s*[?.!]*\s*$|"
+                              r"^\s*what (?:have|did) we decided?(?: so far)?\s*[?.!]*\s*$", re.I)
 _Q_WORDS = re.compile(r"\b(what|whats|when|who|whom|where|why|how|did|do|does|we|i|the|is|are|was|were|about|"
                       r"tell|me|find|show|any|anything|there|regarding|re|handling|handles|handle|doing|happening|"
                       r"status|latest|current|currently|going|working|looking|responsible|dealing|sorting|"
@@ -1158,6 +1182,9 @@ def ask(docs: list[Doc], question: str, today: dt.date, context: dict) -> dict:
         return {"status": "found" if items else "not_found", "kind": "changes",
                 "summary": "Things your notes say differently over time, newest first:" if items else
                 "I didn't find notes that contradict each other.", "items": items, "gaps": _ask_gaps(context, frags)}
+
+    if _DECISION_LOG_RX.search(q) and not find_period(q, today):
+        return decision_log(ix, frags, context)
 
     # "what happened last week?" / "decisions in October"
     period = find_period(q, today)
@@ -1349,20 +1376,96 @@ def _period_overview(frags: list[Frag], period, plabel: str, context: dict, only
             "summary": f"{lead} {plabel}, newest first.{more}"}
 
 
+def _same_value(a: Frag, b: Frag, c: dict) -> bool:
+    """Do two lines give the same number/date for the subject a change is about?"""
+    va = {v for k, v, n in _valued(a) if k == c["kind"] and n & c["subject"]}
+    vb = {v for k, v, n in _valued(b) if k == c["kind"] and n & c["subject"]}
+    return bool(va & vb)
+
+
+def _and(parts: list[str]) -> str:
+    return parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + " and " + parts[-1]
+
+
+def decision_log(ix: Index, frags: list[Frag], context: dict) -> dict:
+    """Every decision in your notes, newest first, each marked: still stands, something in it
+    changed since (with the later note that says so), or not final yet."""
+    decs = [f for f in frags if "decision" in f.tags and "link" not in f.tags and f.doc.kind != "draft"]
+    later: dict[str, dict] = {}
+    for c in find_changes(ix):                 # newest change first, so the latest word wins
+        new = c["new"]
+        for m in c["members"]:
+            if m is new or m.date >= new.date or "decision" not in m.tags or m.id in later:
+                continue
+            if c["kind"] in ("money", "date") and _same_value(m, new, c):
+                continue                       # it already says what the newest note says
+            later[m.id] = c
+    decs.sort(key=lambda f: (-f.date.toordinal(), f.id))
+    items, n_stand, n_changed, n_open = [], 0, 0, 0
+    for d in decs[:20]:
+        c = later.get(d.id)
+        if c:
+            n_changed += 1
+            new = c["new"]
+            it = item(d, headline=f"{fmt_date(d.date)} · Something in it changed since", flags=["changed since"],
+                      why=why_text(d, extra=f"a later note ({fmt_date(new.date)}) says something different: "
+                                            f"{c['reason']}"))
+            it["replaced_by"] = {"text": new.text, "source": src(new), "reason": c["reason"],
+                                 "tentative": "tentative" in new.tags}
+        elif "tentative" in d.tags:
+            n_open += 1
+            it = item(d, headline=f"{fmt_date(d.date)} · Not final yet", flags=["not final"], why=why_text(d))
+        else:
+            n_stand += 1
+            it = item(d, headline=f"{fmt_date(d.date)} · Still stands", flags=["still stands"],
+                      why=why_text(d, extra="nothing later in your notes says otherwise"))
+        items.append(it)
+    gaps = _ask_gaps(context, frags)
+    if not items:
+        return {"status": "not_found", "kind": "decisions", "items": [], "gaps": gaps,
+                "summary": "I didn't find any decisions in your notes. I count a line as a decision when it says "
+                           "something like “decided”, “agreed” or “approved”."}
+    parts = []
+    if n_stand:
+        parts.append(f"{n_stand} still stand{'s' if n_stand == 1 else ''}")
+    if n_changed:
+        parts.append(f"{n_changed} {'has' if n_changed == 1 else 'have'} something that changed since")
+    if n_open:
+        parts.append(f"{n_open} {'isn’t' if n_open == 1 else 'aren’t'} final yet")
+    more = f" Showing the newest 20 of {len(decs)}." if len(decs) > 20 else ""
+    return {"status": "found", "kind": "decisions", "items": items, "gaps": gaps,
+            "summary": f"Your decision log: {_plural(len(decs), 'decision')} in your notes, newest first. "
+                       f"{_and(parts)}.{more}"}
+
+
 def _not_found_text(words, frags) -> str:
     w = ", ".join(f"“{x}”" for x in words[:4]) or "that"
     files = len({f.doc.path for f in frags})
     return f"I couldn't find anything about {w} in the {_plural(files, 'file')} you've let me see."
 
 
+def _private_gaps(context: dict) -> list[dict]:
+    p = context.get("private_skipped") or []
+    if not p:
+        return []
+    return [{"text": f"{_plural(len(p), 'private note')} not read ({', '.join(p[:3])}). "
+                     f"{'It is' if len(p) == 1 else 'They are'} marked private, so I leave "
+                     f"{'it' if len(p) == 1 else 'them'} closed until you switch "
+                     f"{'it' if len(p) == 1 else 'them'} on.", "kind": "private"}]
+
+
 def _ask_gaps(context: dict, frags: list[Frag]) -> list[dict]:
-    g = []
+    g = _private_gaps(context)
     if context.get("switched_off"):
         g.append({"text": f"Not searched: {_plural(len(context['switched_off']), 'file')} you switched off.",
                   "kind": "scope"})
     if context.get("unreadable"):
-        g.append({"text": f"Not searched: {_plural(len(context['unreadable']), 'image')} I can't read yet "
-                          f"({', '.join(context['unreadable'][:2])}).", "kind": "unreadable"})
+        un = context["unreadable"]
+        whys = [f"{n}: {_unreadable_reason(context, n)}" for n in un if _unreadable_reason(context, n)]
+        g.append({"text": (f"Not searched: {_plural(len(un), 'file')} I couldn't read ({'; '.join(whys[:2])})."
+                           if whys else
+                           f"Not searched: {_plural(len(un), 'image')} I can't read yet ({', '.join(un[:2])})."),
+                  "kind": "unreadable"})
     return g
 
 
@@ -1380,7 +1483,8 @@ _ABOUT_RX = re.compile(r"\b(?:who is|who's|whos|what do i know about|tell me abo
                        r"(?:with|on)|summari[sz]e|everything (?:on|about)|remind me about)\s+(.+?)[?.!]*$", re.I)
 
 CHAT_SUGGESTIONS = ["Prepare me for my next meeting", "What do I owe people?", "What has changed?",
-                    "Catch me up on data residency", "Tell me about Dana", "When is the launch?"]
+                    "Show the decision log", "Catch me up on data residency", "Tell me about Dana",
+                    "When is the launch?"]
 
 
 def _events(docs):
@@ -1478,7 +1582,8 @@ def _chat(docs: list[Doc], msg: str, today: dt.date, context: dict, roster: Rost
                     "Catch up on a person or topic: “tell me about Dana”, “catch me up on data "
                     "residency”.",
                     "Ask a question: “when is the launch?”, “what did we decide about the vendor?”.",
-                    "Find what you've forgotten: “what do I owe people?”, “what has changed?”.",
+                    "Find what you've forgotten: “what do I owe people?”, “what has changed?”, “show the "
+                    "decision log”.",
                     "Every answer quotes your notes with the file and line. If something isn't in your notes, "
                     "I'll say so instead of guessing.",
                 ]}

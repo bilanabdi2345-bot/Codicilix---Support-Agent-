@@ -164,7 +164,12 @@ const SBEngine = (() => {
   }
 
   // files: [{path, display, root, modified: "YYYY-MM-DD", size, text}] -> inventory entries
-  function inventory(files, off) {
+  // A file is private if its name, or a folder it sits in, says "private" or "confidential".
+  // Decided from the name alone, so a private note is never opened to find out.
+  const PRIVATE_RX = /(?<![a-z])(private|confidential)(?![a-z])/i;
+  const isPrivate = (display) => PRIVATE_RX.test(display.replace(/\\/g, "/"));
+
+  function inventory(files, off, on = new Set()) {
     return files.map((f) => {
       const k = kindOf(f.display);
       let readable = true, whyNot = "";
@@ -172,9 +177,11 @@ const SBEngine = (() => {
       else if (k === "screenshot") { readable = false; whyNot = "image - no on-device text recognition yet"; }
       else if (f.size > 2000000) { readable = false; whyNot = "larger than 2 MB"; }
       const key = f.path.toLowerCase();
+      const priv = isPrivate(f.display), locked = priv && !on.has(key) && !off.has(key);
       return { path: f.path, key, root: f.root, display: f.display, kind: k || "other",
         kind_label: KIND_LABEL[k || ""] || "Other", size: f.size, modified: f.modified, readable,
-        why_not: whyNot, allowed: readable && !off.has(key), switched_off: off.has(key), text: f.text };
+        why_not: whyNot, allowed: readable && !off.has(key) && !locked, switched_off: off.has(key),
+        private: priv, private_locked: locked, text: f.text };
     });
   }
 
@@ -491,6 +498,7 @@ review talk topic plan planning team context thanks follow followup again since 
     return frags;
   }
 
+  const NAMED_JOB_RX = /^\s*(?:[-*•]\s*)?([A-Za-z]+)\s*:\s*\S/;
   function tag(f, d, roster) {
     const t = f.text, raw = f.raw;
     f.people = roster.inText(t);
@@ -529,12 +537,22 @@ review talk topic plan planning team context thanks follow followup again since 
           }
         }
       }
+      if (!reason) {   // "Priya: API tier test by 1 Dec" (a name, a job and a deadline)
+        const nm = t.match(NAMED_JOB_RX);
+        if (nm && roster.full.has(nm[1].toLowerCase()) && f.dates.length && /\b(?:by|before|due)\b/i.test(t)) {
+          reason = `gives ${roster.name(nm[1].toLowerCase())} a job with a deadline`;
+        }
+      }
       if (!reason && d.kind === "reminders") reason = "in your reminders";
       if (reason) { f.tags.add("action"); f.why.action = reason; }
     }
     if (d.kind === "actions" && t.includes(" · ")) {
       const who = t.split(" · ")[1].trim().toLowerCase();
       f.owner = ["me", "i", "you"].includes(who) ? "you" : (who.split(/\s+/)[0] || null);
+    }
+    if (f.owner === null && (f.tags.has("action") || f.tags.has("done") || f.tags.has("question"))) {
+      const nm = t.match(NAMED_JOB_RX);
+      if (nm && roster.full.has(nm[1].toLowerCase())) f.owner = nm[1].toLowerCase();
     }
     if (f.owner === null && (f.tags.has("action") || f.tags.has("done") || f.tags.has("question"))) {
       for (const first of roster.full.keys()) {
@@ -898,6 +916,7 @@ month week day end anything original amount`.split(/\s+/).map(stem));
     if ((context.switched_off || []).length) {
       gaps.push({ text: `You switched off ${plural(context.switched_off.length, "file")} (${context.switched_off.slice(0, 3).join(", ")}), so I didn't look at them.`, kind: "scope" });
     }
+    gaps.push(...privateGaps(context));
     sections.push({ id: "gaps", title: "What I couldn't check", subtitle: "So you know where this brief stops",
       items: gaps.length ? gaps : [{ text: "Nothing obvious is missing. All the files you allowed were readable.", kind: "ok" }], plain: true });
 
@@ -912,9 +931,16 @@ month week day end anything original amount`.split(/\s+/).map(stem));
       const stemWords = new Set(tokens(name.replace(/\d/g, " ")).filter((w) => !["png", "jpg", "jpeg"].includes(w)));
       const refs = frags.filter((f) => inter(stemWords, new Set(f.toks)).size || /\b(screenshot|pic|photo|image)s?\b/i.test(f.text));
       const extra = refs.length ? ` Your note “${refs[0].text}” (${fmtDate(refs[0].date)}) points to it, so something relevant may be in it.` : "";
-      out.push({ text: `I can't read images on this device yet, so I skipped ${name}.${extra}`, kind: "unreadable", source: refs.length ? src(refs[0]) : null });
+      const why = unreadableReason(context, name);
+      out.push({ text: why ? `I couldn't read ${name} (${why}).${extra}` : `I can't read images on this device yet, so I skipped ${name}.${extra}`,
+        kind: "unreadable", source: refs.length ? src(refs[0]) : null });
     }
     return out;
+  }
+  // Why a file couldn't be read, unless it's just "this device has no text reader".
+  function unreadableReason(context, name) {
+    const why = (context.why_not || {})[name] || "";
+    return !why || why.startsWith("image - no on-device") ? "" : why;
   }
 
   const INCOMPLETE_RX = /(\bbecause|\band|\bbut|\bso|:|-|—|,)\s*$|\[?\btodo\b|\btbd\b|\bxx+\b|\[\s*\]|\?\?\?/i;
@@ -999,11 +1025,83 @@ month week day end anything original amount`.split(/\s+/).map(stem));
   const CHANGED_RX = /\bwhat(?:'s| has| have)? changed\b|\bout of date\b|\bcontradict/i;
   const Q_WORDS = /\b(what|whats|when|who|whom|where|why|how|did|do|does|we|i|the|is|are|was|were|about|tell|me|find|show|any|anything|there|regarding|re|handling|handles|handle|doing|happening|status|latest|current|currently|going|working|looking|responsible|dealing|sorting|managing|owns|owner|mean|means|happened|remind|recall|again|our|my|on|with|for|of)\b/gi;
 
+  function privateGaps(context) {
+    const p = context.private_skipped || [];
+    if (!p.length) return [];
+    const one = p.length === 1;
+    return [{ text: `${plural(p.length, "private note")} not read (${p.slice(0, 3).join(", ")}). `
+      + `${one ? "It is" : "They are"} marked private, so I leave ${one ? "it" : "them"} closed until you switch ${one ? "it" : "them"} on.`, kind: "private" }];
+  }
+
   function askGaps(context) {
-    const out = [];
+    const out = privateGaps(context);
     if ((context.switched_off || []).length) out.push({ text: `Not searched: ${plural(context.switched_off.length, "file")} you switched off.`, kind: "scope" });
-    if ((context.unreadable || []).length) out.push({ text: `Not searched: ${plural(context.unreadable.length, "image")} I can't read yet (${context.unreadable.slice(0, 2).join(", ")}).`, kind: "unreadable" });
+    const un = context.unreadable || [];
+    if (un.length) {
+      const whys = un.filter((n) => unreadableReason(context, n)).map((n) => `${n}: ${unreadableReason(context, n)}`);
+      out.push({ text: whys.length ? `Not searched: ${plural(un.length, "file")} I couldn't read (${whys.slice(0, 2).join("; ")}).`
+        : `Not searched: ${plural(un.length, "image")} I can't read yet (${un.slice(0, 2).join(", ")}).`, kind: "unreadable" });
+    }
     return out;
+  }
+
+  const DECISION_LOG_RX = /\bdecision log\b|\b(?:all|every)\s+(?:the\s+|our\s+|my\s+)?decisions\b|^\s*(?:show(?: me)?|list|give me)?\s*(?:the\s+|our\s+|my\s+)?decisions(?: so far| we(?:'ve| have) made| made)?\s*[?.!]*\s*$|^\s*what (?:have|did) we decided?(?: so far)?\s*[?.!]*\s*$/i;
+
+  // Do two lines give the same number/date for the subject a change is about?
+  function sameValue(a, b, c) {
+    const pick = (f) => new Set(valued(f).filter(([k, , n]) => k === c.kind && inter(n, c.subject).size).map(([, v]) => v));
+    const va = pick(a), vb = pick(b);
+    return [...va].some((v) => vb.has(v));
+  }
+  const andList = (parts) => (parts.length === 1 ? parts[0] : parts.slice(0, -1).join(", ") + " and " + parts[parts.length - 1]);
+
+  // Every decision in your notes, newest first, each marked: still stands, something in it
+  // changed since (with the later note that says so), or not final yet.
+  function decisionLog(ix, frags, context) {
+    const decs = frags.filter((f) => f.tags.has("decision") && !f.tags.has("link") && f.doc.kind !== "draft");
+    const later = new Map();
+    for (const c of findChanges(ix)) {          // newest change first, so the latest word wins
+      const nw = c.new;
+      for (const m of c.members) {
+        if (m === nw || m.date >= nw.date || !m.tags.has("decision") || later.has(m.id)) continue;
+        if ((c.kind === "money" || c.kind === "date") && sameValue(m, nw, c)) continue;
+        later.set(m.id, c);
+      }
+    }
+    const sorted = sortBy(decs, (f) => [-f.date, f.id]);
+    const items = [];
+    let nStand = 0, nChanged = 0, nOpen = 0;
+    for (const d of sorted.slice(0, 20)) {
+      const c = later.get(d.id);
+      let it;
+      if (c) {
+        nChanged++;
+        const nw = c.new;
+        it = item(d, { headline: `${fmtDate(d.date)} · Something in it changed since`, flags: ["changed since"],
+          why: whyText(d, null, `a later note (${fmtDate(nw.date)}) says something different: ${c.reason}`) });
+        it.replaced_by = { text: nw.text, source: src(nw), reason: c.reason, tentative: nw.tags.has("tentative") };
+      } else if (d.tags.has("tentative")) {
+        nOpen++;
+        it = item(d, { headline: `${fmtDate(d.date)} · Not final yet`, flags: ["not final"], why: whyText(d) });
+      } else {
+        nStand++;
+        it = item(d, { headline: `${fmtDate(d.date)} · Still stands`, flags: ["still stands"],
+          why: whyText(d, null, "nothing later in your notes says otherwise") });
+      }
+      items.push(it);
+    }
+    const gaps = askGaps(context);
+    if (!items.length) {
+      return { status: "not_found", kind: "decisions", items: [], gaps,
+        summary: "I didn't find any decisions in your notes. I count a line as a decision when it says something like “decided”, “agreed” or “approved”." };
+    }
+    const parts = [];
+    if (nStand) parts.push(`${nStand} still stand${nStand === 1 ? "s" : ""}`);
+    if (nChanged) parts.push(`${nChanged} ${nChanged === 1 ? "has" : "have"} something that changed since`);
+    if (nOpen) parts.push(`${nOpen} ${nOpen === 1 ? "isn’t" : "aren’t"} final yet`);
+    const more = decs.length > 20 ? ` Showing the newest 20 of ${decs.length}.` : "";
+    return { status: "found", kind: "decisions", items, gaps,
+      summary: `Your decision log: ${plural(decs.length, "decision")} in your notes, newest first. ${andList(parts)}.${more}` };
   }
 
   function ask(docs, question, today, context) {
@@ -1033,6 +1131,7 @@ month week day end anything original amount`.split(/\s+/).map(stem));
         summary: items.length ? "Things your notes say differently over time, newest first:" : "I didn't find notes that contradict each other.",
         items, gaps: askGaps(context) };
     }
+    if (DECISION_LOG_RX.test(q) && !findPeriod(q, today)) return decisionLog(ix, frags, context);
     const period = findPeriod(q, today);
     const qx = period ? q.slice(0, period[3][0]) + " " + q.slice(period[3][1]) : q;
     const inPeriod = period ? (f) => period[0] <= f.date && f.date <= period[1] : () => true;
@@ -1237,7 +1336,7 @@ month week day end anything original amount`.split(/\s+/).map(stem));
   const MEETING_RX = /\b(prep(are)?( me)?( for)?|brief( me)?( for| on)?|get ready|ready for|next meeting|my meeting|meeting with|before (my|the) (meeting|1:1|call|steering))\b/i;
   const ABOUT_RX = /\b(?:who is|who's|whos|what do i know about|tell me about|anything (?:on|about)|catch me up on|update me on|update on|status of|what'?s (?:going on|happening|the latest) (?:with|on)|summari[sz]e|everything (?:on|about)|remind me about)\s+(.+?)[?.!]*$/i;
   const CHAT_SUGGESTIONS = ["Prepare me for my next meeting", "What do I owe people?", "What has changed?",
-    "Catch me up on data residency", "Tell me about Dana", "When is the launch?"];
+    "Show the decision log", "Catch me up on data residency", "Tell me about Dana", "When is the launch?"];
   const allEvents = (docs) => docs.flatMap((d) => d.events);
 
   function matchEvent(docs, msg, today, roster) {
@@ -1306,7 +1405,7 @@ month week day end anything original amount`.split(/\s+/).map(stem));
         "Prepare for a meeting: “prepare me for my 1:1 with Priya”, “brief me for steering”, “prepare me for my next meeting”.",
         "Catch up on a person or topic: “tell me about Dana”, “catch me up on data residency”.",
         "Ask a question: “when is the launch?”, “what did we decide about the vendor?”.",
-        "Find what you've forgotten: “what do I owe people?”, “what has changed?”.",
+        "Find what you've forgotten: “what do I owe people?”, “what has changed?”, “show the decision log”.",
         "Every answer quotes your notes with the file and line. If something isn't in your notes, I'll say so instead of guessing."] };
     }
     if (MEETING_RX.test(msg)) {

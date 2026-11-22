@@ -107,10 +107,15 @@ function renderScope() {
           await api("/api/scope/toggle", { path: f.path, allowed: e.target.checked });
           await afterScopeChange();
         } });
-      files.append(h("div", { class: "file" + (f.switched_off ? " off" : "") + (f.readable ? "" : " unreadable"),
-        title: f.readable ? (f.allowed ? "The assistant may read this" : "Switched off: the assistant won't open it") : f.why_not },
+      const tip = !f.readable ? f.why_not : f.private_locked
+        ? "Marked private (its name or folder says private or confidential), so it stays closed until you switch it on"
+        : f.allowed ? (f.private ? "Private, but you switched it on: the assistant may read it" : "The assistant may read this")
+        : "Switched off: the assistant won't open it";
+      files.append(h("div", { class: "file" + (f.switched_off ? " off" : "") + (f.readable ? "" : " unreadable")
+        + (f.private_locked ? " locked" : ""), title: tip },
         h("label", { class: "switch" }, input, h("span")),
         h("span", { class: "file-name" }, f.display.split("/").pop()),
+        f.private ? h("span", { class: "file-lock" + (f.private_locked ? "" : " open") }, f.private_locked ? "🔒 private" : "private, on") : null,
         f.readable ? null : h("span", { class: "file-why" }, "can't read")));
     }
   }
@@ -176,7 +181,8 @@ function flagEl(f) {
   let cls = "flag";
   if (f.startsWith("overdue")) cls += " overdue";
   else if (f.startsWith("written down")) cls += " repeat";
-  else if (f === "changed") { cls += " changed"; f = "changed"; }
+  else if (f === "changed" || f === "changed since") cls += " changed";
+  else if (f === "still stands") cls += " stands";
   else if (f === "tentative" || f === "not final") { cls += " tentative"; f = "not final"; }
   else if (f.startsWith("due")) cls += " due";
   return h("span", { class: cls }, f);
@@ -214,6 +220,9 @@ function itemEl(it) {
     it.before ? h("div", { class: "arrow" }, "now ↓") : null,
     h("div", { class: "quote" }, it.text),
     h("div", { class: "src-row" }, srcChip(it.source), whyBtn),
+    it.replaced_by ? h("div", { class: "later" },
+      h("div", { class: "label" }, `Later: ${it.replaced_by.reason}${it.replaced_by.tentative ? " (not final yet)" : ""}`),
+      h("span", { class: "quote" }, it.replaced_by.text), " ", srcChip(it.replaced_by.source)) : null,
     whyBox, moreRow);
 }
 
@@ -288,7 +297,8 @@ function briefQuotes(b) {
   }
   return out;
 }
-const answerQuotes = (d) => (d.items || []).map((it) => ({ text: it.text, source: it.source }));
+const answerQuotes = (d) => (d.items || []).flatMap((it) => [{ text: it.text, source: it.source }]
+  .concat(it.replaced_by ? [{ text: it.replaced_by.text, source: it.replaced_by.source }] : []));
 
 function aiBlock(request, quotes) {
   const ai = STATE && STATE.ai;
@@ -395,7 +405,8 @@ function renderBrief(data, opts = {}) {
 // The conversation lives only in this page's memory: no storage, no server-side history.
 const chatLog = $("#chatLog");
 const CHAT_START = ["Prepare me for my next meeting", "What do I owe people?", "What has changed?",
-  "Catch me up on data residency", "Tell me about Dana", "When is the launch?", "What's Tom's phone number?"];
+  "Show the decision log", "Catch me up on data residency", "Tell me about Dana", "When is the launch?",
+  "What's Tom's phone number?"];
 
 function chipsEl(list) {
   return h("div", { class: "chips" }, list.map((q) => h("button", { class: "chip", onclick: () => sendChat(q) }, q)));
@@ -493,8 +504,12 @@ async function openSource(path, line, file) {
   $("#drawerTitle").textContent = data.error ? file : `${data.file} · line ${data.line}`;
   const body = $("#drawerBody");
   if (data.error) body.replaceChildren(h("div", { class: "error" }, data.error));
-  else body.replaceChildren(...data.lines.map((l) =>
-    h("span", { class: "ln" + (l.n === data.line ? " hit" : "") }, h("span", { class: "ln-n" }, l.n), l.text || " ")));
+  else body.replaceChildren(
+    data.read_by ? h("div", { class: "ocr-note" }, `Text read from this image by ${data.read_by}, on this computer. `
+      + "It can misread handwriting, so check it against the picture.") : null,
+    data.image ? h("img", { class: "ocr-img", src: data.image, alt: `The original image: ${data.file}` }) : null,
+    ...data.lines.map((l) =>
+      h("span", { class: "ln" + (l.n === data.line ? " hit" : "") }, h("span", { class: "ln-n" }, l.n), l.text || " ")));
   $("#drawerPath").textContent = data.path_display || data.path || "";
   $("#drawer").classList.remove("hidden");
   $("#scrim").classList.remove("hidden");
@@ -603,7 +618,7 @@ async function loadProof() {
   const testBox = h("div", {}, leakResultsEl());
   const kindLabel = {
     write_blocked: ["Blocked", "blocked"], net_blocked: ["Blocked", "blocked"], exec_blocked: ["Blocked", "blocked"],
-    net_loopback: ["Local", "ok"], exec_allowed: ["Allowed", "ok"], read_outside: ["Unexpected read", "blocked"],
+    net_loopback: ["Local", "ok"], exec_allowed: ["Allowed", "ok"], helper_run: ["Screenshot reader", "ok"], read_outside: ["Unexpected read", "blocked"],
     read_switched_off: ["Read a switched-off file", "blocked"], forget: ["Forgot", "ok"],
   };
   const checkBox = h("div", {}, checkupEl());
@@ -628,7 +643,8 @@ async function loadProof() {
         stat(d.reads_outside_scope + d.reads_switched_off, "reads outside what you allowed", "files outside your folders, or ones you switched off", d.reads_outside_scope + d.reads_switched_off === 0),
         stat(0, "files written", d.writes_blocked ? `${d.writes_blocked} attempt(s) blocked` : "the app can't create, change or delete files", true),
         stat(0, "connections off this device", d.net_blocked ? `${d.net_blocked} attempt(s) blocked` : "not even a DNS lookup", true),
-        stat(0, "other programs started", d.exec_blocked ? `${d.exec_blocked} attempt(s) blocked` : "apart from opening your browser once", true),
+        stat(0, "other programs started", (d.exec_blocked ? `${d.exec_blocked} attempt(s) blocked` : "apart from opening your browser once")
+          + (d.helper_runs ? `, and ${STATE.ocr || "the screenshot reader"} ${d.helper_runs} time(s) to read your screenshots` : ""), true),
         stat(d.test_blocks, "blocked in leak tests you ran", "see below", true))),
     h("div", { class: "card" },
       h("h2", {}, "Try to make it leak"),
