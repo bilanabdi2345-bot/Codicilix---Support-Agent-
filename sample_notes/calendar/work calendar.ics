@@ -1,0 +1,50 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Sample//Second Brain demo//EN
+BEGIN:VEVENT
+UID:standup-1117@sample
+DTSTART:20261117T093000
+DTEND:20261117T094500
+SUMMARY:Atlas standup
+ORGANIZER;CN=Sam Rivera:mailto:sam@sample.example
+ATTENDEE;CN=Priya Shah:mailto:priya@sample.example
+ATTENDEE;CN=Tom Okafor:mailto:tom@sample.example
+END:VEVENT
+BEGIN:VEVENT
+UID:one-one-priya-1123@sample
+DTSTART:20261123T100000
+DTEND:20261123T103000
+SUMMARY:1:1 Priya
+ORGANIZER;CN=Sam Rivera:mailto:sam@sample.example
+ATTENDEE;CN=Priya Shah:mailto:priya@sample.example
+END:VEVENT
+BEGIN:VEVENT
+UID:steering-1124@sample
+DTSTART:20261124T140000
+DTEND:20261124T150000
+SUMMARY:Atlas steering group
+DESCRIPTION:Agenda: launch date\, budget\, data residency
+ORGANIZER;CN=Sam Rivera:mailto:sam@sample.example
+ATTENDEE;CN=Helen Ward:mailto:helen@sample.example
+ATTENDEE;CN=Dana Lee:mailto:dana@sample.example
+ATTENDEE;CN=Priya Shah:mailto:priya@sample.example
+ATTENDEE;CN=Tom Okafor:mailto:tom@sample.example
+END:VEVENT
+BEGIN:VEVENT
+UID:brightline-1125@sample
+DTSTART:20261125T110000
+DTEND:20261125T114500
+SUMMARY:Brightline contract call
+ORGANIZER;CN=Sam Rivera:mailto:sam@sample.example
+ATTENDEE;CN=Marco Bianchi:mailto:marco@brightline.example
+ATTENDEE;CN=Priya Shah:mailto:priya@sample.example
+END:VEVENT
+BEGIN:VEVENT
+UID:tom-day1-1126@sample
+DTSTART:20261126T093000
+DTEND:20261126T103000
+SUMMARY:Tom - first day welcome
+ORGANIZER;CN=Sam Rivera:mailto:sam@sample.example
+ATTENDEE;CN=Tom Okafor:mailto:tom@sample.example
+END:VEVENT
+END:VCALENDAR

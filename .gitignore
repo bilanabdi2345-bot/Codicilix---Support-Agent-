@@ -1,0 +1,14 @@
+# Python caches (the app never writes these itself, but other tools might)
+__pycache__/
+*.pyc
+
+# Leftovers from local testing
+leak-test-copy.txt
+should-not-exist.txt
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

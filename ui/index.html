@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Second Brain · on this device</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <div class="logo" aria-hidden="true"><span></span><span></span><span></span></div>
+    <div>
+      <div class="brand-name">Second Brain</div>
+      <div class="brand-sub" id="brandSub">Help from your own notes. Nothing leaves this device.</div>
+    </div>
+  </div>
+  <button class="trust-pill" id="trustPill" title="See the proof">
+    <span class="dot"></span><span id="trustText">On this device · guard on</span>
+  </button>
+  <button class="ghost" id="endSession" title="Forget the allowed folders and the ledger">End session &amp; forget</button>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <h2>What I can see</h2>
+    <p class="hint" id="scopeHint">I only read folders you add here, only when you ask, and I keep no copy.</p>
+    <div id="roots"></div>
+    <form id="addForm" class="add-form">
+      <input id="addPath" placeholder="Paste a folder path, e.g. D:\Notes" autocomplete="off" spellcheck="false">
+      <button type="submit">Add</button>
+    </form>
+    <div id="addError" class="error hidden" role="alert"></div>
+    <button class="link-btn" id="useSample">Use the sample manager notes</button>
+    <div id="files"></div>
+  </aside>
+
+  <main class="main">
+    <nav class="tabs" role="tablist">
+      <button role="tab" class="tab active" data-tab="ask">Chat with your notes</button>
+      <button role="tab" class="tab" data-tab="prep">Prepare for a meeting</button>
+      <button role="tab" class="tab" data-tab="proof">Proof it stayed here</button>
+    </nav>
+
+    <section id="tab-prep" class="panel hidden">
+      <div id="meetings"></div>
+      <div id="brief"></div>
+    </section>
+
+    <section id="tab-ask" class="panel">
+      <div class="chat">
+        <div class="chat-head">
+          <div>
+            <div class="chat-title">Chat with your notes</div>
+            <div class="chat-sub">This conversation exists only in this page. Start a new chat or refresh, and it's gone.</div>
+          </div>
+          <button class="ghost" id="newChat">New chat</button>
+        </div>
+        <div id="chatLog" class="chat-log" aria-live="polite"></div>
+        <form id="chatForm" class="chat-form">
+          <input id="chatInput" placeholder="Ask anything, e.g. “prepare me for my 1:1 with Priya” or “what do I owe people?”" autocomplete="off" maxlength="500">
+          <button type="submit">Send</button>
+        </form>
+      </div>
+    </section>
+
+    <section id="tab-proof" class="panel hidden">
+      <div id="proof"></div>
+    </section>
+  </main>
+</div>
+
+<div class="drawer hidden" id="drawer" role="dialog" aria-label="Original note">
+  <div class="drawer-head">
+    <div>
+      <div class="drawer-title" id="drawerTitle"></div>
+      <div class="drawer-sub">Read from your file just now · not stored anywhere</div>
+    </div>
+    <button class="ghost" id="drawerClose" aria-label="Close">✕</button>
+  </div>
+  <pre class="source" id="drawerBody"></pre>
+  <div class="drawer-path" id="drawerPath"></div>
+</div>
+<div class="scrim hidden" id="scrim"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>
