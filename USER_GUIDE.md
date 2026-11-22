@@ -25,7 +25,7 @@ You need Python 3.10 or newer; nothing else to install.
 3. If you open the app another way, use the link printed in the terminal. It ends in `#key=…`, a new secret key each launch, and other windows are refused without it.
 4. To use your own notes, paste a folder path into the box on the left and click **Add**, or start with `python app.py --allow "D:\My notes"`.
 
-It reads notes (`.md`, `.txt`), action lists (`.csv`), calendars (`.ics`) and saved links. Screenshots are listed, but not read yet. Press Ctrl+C in the terminal to stop: everything it saw is forgotten.
+It reads notes (`.md`, `.txt`), action lists (`.csv`), calendars (`.ics`), saved links and, on Windows, screenshots and photos (with Windows' own text reader, on your computer). Press Ctrl+C in the terminal to stop: everything it saw is forgotten.
 
 ## Ask it things
 
@@ -39,9 +39,12 @@ Type in the chat in your own words. Click a suggestion chip to start, or **New c
 | What happened in a period | "what happened last week?", "decisions in October", "actions since Monday" |
 | Promises you haven't kept | "what do I owe people?" |
 | Notes that now disagree | "what has changed?" |
+| Every decision, and which ones still stand | "show the decision log", "what have we decided?" |
 | Help | "help" |
 
 Spelling mistakes are forgiven, and it tells you what it read ("I read 'budjet' as 'budget'"). If the answer isn't in your notes, it says "I couldn't find anything about…" instead of guessing.
+
+The **decision log** lists every decision newest first. Each is marked **Still stands**, **Changed since** (with the later note shown underneath, and what changed, such as "£40k → £55k"), or **Not final**.
 
 ## Read a brief
 
@@ -61,6 +64,8 @@ Click any grey source label to open the original note at that line. **Why this?*
 You decide what it can read, and you can check for yourself that nothing left your computer.
 
 - **Switch a file off** with its switch on the left: it won't be opened, and answers say they didn't look there.
+- **Private notes stay closed.** Put "private" or "confidential" in a file's name, or in a folder's name, and it starts switched off with a 🔒 badge. Answers say "1 private note not read". Switch it on when you want it included.
+- **Screenshots** are read by Windows' own text reader, on your computer. Click a screenshot's source label to see the picture next to the text it read; handwriting can be misread, so check the ones that matter.
 - **Remove a folder** with the ✕ next to it, or click **End session & forget** to clear everything from memory.
 - **Receipts**: under every answer, click the lock line to see exactly which files were read. It always says wrote 0, sent nothing, kept nothing.
 - **Full check-up**: open **Proof it stayed here** and click **Run the full check-up**. It tests every promise live and explains each result in plain words.
@@ -80,4 +85,5 @@ If you add a folder that OneDrive, Dropbox, Google Drive or iCloud syncs, the ap
 | The window says "Open Second Brain from its own link" | Use the link printed in the terminal (ends in `#key=…`), or start the app again |
 | Sample meetings show as past | Start with `python app.py --today 2026-11-22` |
 | A note has no date inside | It's dated by the file's last change, and the brief says so |
-| It can't find something you wrote | Check the file is switched on and is a supported type; screenshots aren't read yet |
+| It can't find something you wrote | Check the file is switched on (private notes start off) and is a supported type. Screenshots are only read on Windows |
+| You don't want screenshots read | Start with `python app.py --no-ocr` |
